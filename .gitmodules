@@ -1,0 +1,12 @@
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "lib/EVM"]
+	path = lib/EVM
+	url = https://github.com/proof-of-capital/EVM
+[submodule "lib/EVM-MM"]
+	path = lib/EVM-MM
+	url = https://github.com/proof-of-capital/EVM-MM
+[submodule "lib/DAO-EVM"]
+	path = lib/DAO-EVM
+	url = https://github.com/proof-of-capital/DAO-EVM
