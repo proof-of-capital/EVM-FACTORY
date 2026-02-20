@@ -1,0 +1,14 @@
+{
+  "lib/EVM": {
+    "rev": "2aff188e6458bd0d258bec2d7c0f6e3994b8725b"
+  },
+  "lib/EVM-MM": {
+    "rev": "aa49f83c8f1fccf42ddb57e2a3f314209117a992"
+  },
+  "lib/forge-std": {
+    "tag": {
+      "name": "v1.15.0",
+      "rev": "0844d7e1fc5e60d77b68e469bff60265f236c398"
+    }
+  }
+}

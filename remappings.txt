@@ -1,0 +1,5 @@
+forge-std/=lib/forge-std/src/
+EVM/=lib/EVM/src/
+EVM-MM/=lib/EVM-MM/src/
+DAO-EVM/=lib/DAO-EVM/src/
+@openzeppelin/contracts/=lib/DAO-EVM/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/
