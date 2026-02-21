@@ -200,11 +200,14 @@ deploy-dao-implementation-local:
 # Full DAO libs + implementation (convenience: step1 -> step2 -> implementation)
 deploy-dao-implementation-full-local: deploy-dao-libraries-step1-local deploy-dao-libraries-step2-local deploy-dao-implementation-local
 
-# EVMFactory. Requires .dao_implementation.env (DAO_IMPLEMENTATION) and .env (MERA_FUND, POC_ROYALTY, POC_BUYBACK)
+# EVMFactory. Requires .dao_implementation.env (DAO_IMPLEMENTATION), .dao_library_addresses.env (multisig libs), and .env (MERA_FUND, POC_ROYALTY, POC_BUYBACK)
 deploy-factory-local:
-	@set -a && [ -f .dao_implementation.env ] && . ./.dao_implementation.env; [ -f .env ] && . ./.env; set +a && \
+	@set -a && [ -f .dao_library_addresses.env ] && . ./.dao_library_addresses.env; [ -f .dao_implementation.env ] && . ./.dao_implementation.env; [ -f .env ] && . ./.env; set +a && \
 	forge script script/DeployEVMFactory.s.sol \
-		--rpc-url ${LOCAL_RPC_URL} --private-key ${PRIVATE_KEY} --broadcast -vvv
+		--rpc-url ${LOCAL_RPC_URL} --private-key ${PRIVATE_KEY} --broadcast \
+		--libraries DAO-EVM/libraries/external/MultisigSwapLibrary.sol:MultisigSwapLibrary:$${multisigSwapLibrary} \
+		--libraries DAO-EVM/libraries/external/MultisigLPLibrary.sol:MultisigLPLibrary:$${multisigLPLibrary} \
+		-vvv
 
 help:
 	@echo "Available commands:"
@@ -222,11 +225,11 @@ help:
 	@echo "  make deploy-mainnet       - Deploy to mainnet with verification (use with caution!)"
 	@echo ""
 	@echo "DAO + EVMFactory (run in order):"
-	@echo "  make deploy-dao-libraries-step1-local  - Deploy DAO-EVM libs (VaultLibrary, Orderbook, OracleLibrary)"
+	@echo "  make deploy-dao-libraries-step1-local  - Deploy DAO-EVM libs (VaultLibrary, Orderbook, OracleLibrary, MultisigSwapLibrary, MultisigLPLibrary)"
 	@echo "  make deploy-dao-libraries-step2-local  - Deploy DAO-EVM libs (POCLibrary, FundraisingLibrary, ...)"
 	@echo "  make deploy-dao-implementation-local   - Deploy DAO implementation for EVMFactory"
 	@echo "  make deploy-dao-implementation-full-local - All above in one go"
-	@echo "  make deploy-factory-local              - Deploy EVMFactory (needs DAO_IMPLEMENTATION + MERA_FUND, POC_ROYALTY, POC_BUYBACK in .env)"
+	@echo "  make deploy-factory-local              - Deploy EVMFactory (needs .dao_library_addresses.env, DAO_IMPLEMENTATION, MERA_FUND, POC_ROYALTY, POC_BUYBACK)"
 	@echo ""
 	@echo "  make help            - Show this help message"
 	@echo ""
