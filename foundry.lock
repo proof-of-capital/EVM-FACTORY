@@ -1,4 +1,7 @@
 {
+  "lib/DAO-EVM": {
+    "rev": "8b43e8216cce156a99a16e7c9d161f8d5a8d09a9"
+  },
   "lib/EVM": {
     "rev": "2aff188e6458bd0d258bec2d7c0f6e3994b8725b"
   },

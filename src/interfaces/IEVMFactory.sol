@@ -1,0 +1,78 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.34;
+
+import {IProofOfCapital} from "EVM/interfaces/IProofOfCapital.sol";
+import {DataTypes} from "DAO-EVM/libraries/DataTypes.sol";
+import {IMultisig} from "DAO-EVM/interfaces/IMultisig.sol";
+
+/// @title IEVMFactory
+/// @notice Interface for EVMFactory: errors and events for deployment of the full EVM stack.
+interface IEVMFactory {
+    struct DeployAllParams {
+        string tokenName;
+        string tokenSymbol;
+        uint256 tokenTotalSupply;
+        address tokenInitialHolder;
+        uint256 mmMinProfitBps;
+        uint256 mmWithdrawLaunchLockUntil;
+        IProofOfCapital.InitParams[] pocParams;
+        DataTypes.ConstructorParams daoInitParams;
+        address[] multisigPrimary;
+        address[] multisigBackup;
+        address[] multisigEmergency;
+        uint256 multisigTargetCollateral;
+        address uniswapV3Router;
+        address uniswapV3PositionManager;
+        IMultisig.LPPoolParams multisigLpPoolParams;
+        IMultisig.CollateralConstructorParams[] multisigCollaterals;
+        address returnWalletAddress;
+        address finalAdmin;
+    }
+
+    /// @notice Deploys the full EVM stack: Token, ReturnBurn, POC contracts, RebalanceV2, DAO (proxy + Voting + Multisig), wires DAO and finalizes rights.
+    function deployAll(DeployAllParams calldata p)
+        external
+        returns (
+            address token,
+            address returnBurn,
+            address[] memory pocAddresses,
+            address marketMakerV2,
+            address daoProxy,
+            address voting,
+            address multisig,
+            address returnWallet
+        );
+
+    // -------------------------------------------------------------------------
+    // Errors
+    // -------------------------------------------------------------------------
+    error ZeroDaoImplementation();
+    error ZeroMeraFund();
+    error ZeroPocRoyalty();
+    error ZeroPocBuyback();
+    error ZeroLaunchToken();
+    error ZeroPlaceholder();
+    error PocParamsLengthMismatch();
+
+    // -------------------------------------------------------------------------
+    // Deployment events (one per deployed contract / logical step)
+    // -------------------------------------------------------------------------
+    event TokenDeployed(address indexed token, string name, string symbol, uint256 totalSupply, address initialHolder);
+
+    event ReturnBurnDeployed(address indexed returnBurn, address indexed launchToken);
+
+    event PocDeployed(address indexed poc, address indexed launchToken, uint256 index);
+
+    event MarketMakerV2Deployed(
+        address indexed marketMakerV2,
+        address indexed launchToken,
+        uint256 minProfitBps,
+        uint256 withdrawLaunchLockUntil
+    );
+
+    event VotingDeployed(address indexed voting);
+
+    event DaoProxyDeployed(address indexed daoProxy, address indexed implementation);
+
+    event MultisigDeployed(address indexed multisig, address indexed daoProxy);
+}
