@@ -22,10 +22,7 @@ library MarketMakerV2Library {
         address pocBuyback
     ) external returns (address) {
         ProfitWallets memory w = ProfitWallets({
-            meraFund: meraFund,
-            pocRoyalty: pocRoyalty,
-            pocBuyback: pocBuyback,
-            dao: address(0)
+            meraFund: meraFund, pocRoyalty: pocRoyalty, pocBuyback: pocBuyback, dao: address(0)
         });
         RebalanceV2 mm = new RebalanceV2(launchToken, w);
         if (minProfitBps != 0) mm.setMinProfitBps(minProfitBps);

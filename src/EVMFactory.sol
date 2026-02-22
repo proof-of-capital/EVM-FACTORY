@@ -93,9 +93,7 @@ contract EVMFactory is Ownable, IEVMFactory {
         returnBurn = ReturnBurnDeployLibrary.executeDeployReturnBurn(token);
         emit ReturnBurnDeployed(returnBurn, token);
 
-        pocAddresses = PocDeployLibrary.executeDeployPocContracts(
-            token, returnBurn, self, self, p.pocParams
-        );
+        pocAddresses = PocDeployLibrary.executeDeployPocContracts(token, returnBurn, self, self, p.pocParams);
         for (uint256 i = 0; i < pocAddresses.length; i++) {
             emit PocDeployed(pocAddresses[i], token, i);
         }
@@ -108,9 +106,8 @@ contract EVMFactory is Ownable, IEVMFactory {
         SetMarketMakerOnPocsLibrary.executeSetMarketMakerOnPocs(pocAddresses, marketMakerV2);
 
         DataTypes.ConstructorParams memory initParams = p.daoInitParams;
-        DaoProxyLibrary.DeployDaoProxyResult memory proxyResult = DaoProxyLibrary.executeDeployDaoProxy(
-            token, initParams, pocAddresses, DAO_IMPLEMENTATION
-        );
+        DaoProxyLibrary.DeployDaoProxyResult memory proxyResult =
+            DaoProxyLibrary.executeDeployDaoProxy(token, initParams, pocAddresses, DAO_IMPLEMENTATION);
         daoProxy = proxyResult.daoProxy;
         voting = proxyResult.voting;
         {

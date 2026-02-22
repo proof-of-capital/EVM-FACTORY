@@ -23,9 +23,7 @@ contract DeployDaoImplementationScript is Script {
 
         vm.stopBroadcast();
 
-        string memory envContent = string(
-            abi.encodePacked("DAO_IMPLEMENTATION=", vm.toString(impl), "\n")
-        );
+        string memory envContent = string(abi.encodePacked("DAO_IMPLEMENTATION=", vm.toString(impl), "\n"));
         vm.writeFile(ENV_FILE, envContent);
         console.log("DAO_IMPLEMENTATION saved to", ENV_FILE);
     }

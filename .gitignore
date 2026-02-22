@@ -15,3 +15,6 @@ docs/
 lcov.info
 coverage/
 coverage-html/
+.dao_library_addresses.env
+.dao_library_addresses
+.deployment_addresses.env

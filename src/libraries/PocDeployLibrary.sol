@@ -21,7 +21,9 @@ library PocDeployLibrary {
         address initialOwner,
         IProofOfCapital.InitParams[] memory pocParams
     ) external returns (address[] memory pocAddresses) {
-        if (placeholderMmAndReturnWallet == address(0)) revert IEVMFactory.ZeroPlaceholder();
+        if (placeholderMmAndReturnWallet == address(0)) {
+            revert IEVMFactory.ZeroPlaceholder();
+        }
         pocAddresses = new address[](pocParams.length);
         for (uint256 i = 0; i < pocParams.length; i++) {
             IProofOfCapital.InitParams memory p = pocParams[i];
