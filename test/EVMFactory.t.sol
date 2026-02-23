@@ -168,6 +168,7 @@ contract EVMFactoryTest is Test {
             uniswapV3Router: allParams.uniswapV3Router,
             uniswapV3PositionManager: allParams.uniswapV3PositionManager,
             multisigLpPoolParams: allParams.multisigLpPoolParams,
+            v3PoolCreateParams: allParams.v3PoolCreateParams,
             multisigCollaterals: allParams.multisigCollaterals,
             returnWalletAddress: allParams.returnWalletAddress,
             finalAdmin: allParams.finalAdmin
@@ -283,6 +284,7 @@ contract EVMFactoryTest is Test {
             multisigLpPoolParams: IMultisig.LPPoolParams({
                 fee: 3000, tickLower: -887220, tickUpper: 887220, amount0Min: 1, amount1Min: 1
             }),
+            v3PoolCreateParams: IEVMFactory.V3PoolCreateParams({sqrtPriceX96: 0}),
             multisigCollaterals: new IMultisig.CollateralConstructorParams[](0),
             returnWalletAddress: returnWalletAddr,
             finalAdmin: finalAdminAddr

@@ -45,6 +45,7 @@ import {DaoProxyLibrary} from "./libraries/DaoProxyLibrary.sol";
 import {MultisigDeployLibrary} from "./libraries/MultisigDeployLibrary.sol";
 import {SetDaoEverywhereLibrary} from "./libraries/SetDaoEverywhereLibrary.sol";
 import {FinalizeRightsLibrary} from "./libraries/FinalizeRightsLibrary.sol";
+import {IPoolInitializer} from "DAO-EVM/interfaces/IPoolInitializer.sol";
 
 /// @title EVMFactory
 /// @notice Deploys the full EVM stack: Token, ReturnBurn, POC contracts, RebalanceV2, DAO (proxy + Voting + Multisig), wires DAO and finalizes rights.
@@ -88,6 +89,15 @@ contract EVMFactory is Ownable, IEVMFactory {
         {
             address holder = p.tokenInitialHolder == address(0) ? self : p.tokenInitialHolder;
             emit TokenDeployed(token, p.tokenName, p.tokenSymbol, p.tokenTotalSupply, holder);
+        }
+        if (p.v3PoolCreateParams.sqrtPriceX96 != 0) {
+            _createV3PoolIfRequested(
+                token,
+                p.daoInitParams.mainCollateral,
+                p.multisigLpPoolParams.fee,
+                p.v3PoolCreateParams.sqrtPriceX96,
+                p.uniswapV3PositionManager
+            );
         }
 
         returnBurn = ReturnBurnDeployLibrary.executeDeployReturnBurn(token);
@@ -157,6 +167,15 @@ contract EVMFactory is Ownable, IEVMFactory {
         if (p.launchToken == address(0)) revert ZeroLaunchToken();
         token = p.launchToken;
         emit ExistingTokenUsed(token);
+        if (p.v3PoolCreateParams.sqrtPriceX96 != 0) {
+            _createV3PoolIfRequested(
+                token,
+                p.daoInitParams.mainCollateral,
+                p.multisigLpPoolParams.fee,
+                p.v3PoolCreateParams.sqrtPriceX96,
+                p.uniswapV3PositionManager
+            );
+        }
 
         address self = address(this);
 
@@ -209,5 +228,19 @@ contract EVMFactory is Ownable, IEVMFactory {
         FinalizeRightsLibrary.executeFinalizeRights(daoProxy, multisig, p.finalAdmin, pocAddresses, marketMakerV2);
 
         return (token, returnBurn, pocAddresses, marketMakerV2, daoProxy, voting, multisig, returnWallet);
+    }
+
+    /// @notice Creates and initializes a Uniswap V3 pool for launchToken/mainCollateral if it does not exist. Token order is by address (token0 < token1).
+    function _createV3PoolIfRequested(
+        address launchToken,
+        address mainCollateral,
+        uint24 fee,
+        uint160 sqrtPriceX96,
+        address positionManager
+    ) internal {
+        (address token0, address token1) = launchToken < mainCollateral
+            ? (launchToken, mainCollateral)
+            : (mainCollateral, launchToken);
+        IPoolInitializer(positionManager).createAndInitializePoolIfNecessary(token0, token1, fee, sqrtPriceX96);
     }
 }

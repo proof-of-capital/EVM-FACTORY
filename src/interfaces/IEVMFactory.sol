@@ -8,6 +8,11 @@ import {IMultisig} from "DAO-EVM/interfaces/IMultisig.sol";
 /// @title IEVMFactory
 /// @notice Interface for EVMFactory: errors and events for deployment of the full EVM stack.
 interface IEVMFactory {
+    /// @notice Parameters for creating and initializing a Uniswap V3 pool (launchToken/mainCollateral). If sqrtPriceX96 is 0, factory does not create the pool.
+    struct V3PoolCreateParams {
+        uint160 sqrtPriceX96; // Initial sqrt price (Q64.96) when creating the pool; 0 = do not create pool in factory
+    }
+
     struct DeployAllParams {
         string tokenName;
         string tokenSymbol;
@@ -24,6 +29,7 @@ interface IEVMFactory {
         address uniswapV3Router;
         address uniswapV3PositionManager;
         IMultisig.LPPoolParams multisigLpPoolParams;
+        V3PoolCreateParams v3PoolCreateParams;
         IMultisig.CollateralConstructorParams[] multisigCollaterals;
         address returnWalletAddress;
         address finalAdmin;
@@ -43,6 +49,7 @@ interface IEVMFactory {
         address uniswapV3Router;
         address uniswapV3PositionManager;
         IMultisig.LPPoolParams multisigLpPoolParams;
+        V3PoolCreateParams v3PoolCreateParams;
         IMultisig.CollateralConstructorParams[] multisigCollaterals;
         address returnWalletAddress;
         address finalAdmin;
