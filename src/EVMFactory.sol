@@ -140,4 +140,74 @@ contract EVMFactory is Ownable, IEVMFactory {
 
         return (token, returnBurn, pocAddresses, marketMakerV2, daoProxy, voting, multisig, returnWallet);
     }
+
+    function deployWithExistingToken(IEVMFactory.DeployWithExistingTokenParams calldata p)
+        external
+        returns (
+            address token,
+            address returnBurn,
+            address[] memory pocAddresses,
+            address marketMakerV2,
+            address daoProxy,
+            address voting,
+            address multisig,
+            address returnWallet
+        )
+    {
+        if (p.launchToken == address(0)) revert ZeroLaunchToken();
+        token = p.launchToken;
+        emit ExistingTokenUsed(token);
+
+        address self = address(this);
+
+        returnBurn = ReturnBurnDeployLibrary.executeDeployReturnBurn(token);
+        emit ReturnBurnDeployed(returnBurn, token);
+
+        pocAddresses = PocDeployLibrary.executeDeployPocContracts(token, returnBurn, self, self, p.pocParams);
+        for (uint256 i = 0; i < pocAddresses.length; i++) {
+            emit PocDeployed(pocAddresses[i], token, i);
+        }
+
+        marketMakerV2 = MarketMakerV2Library.executeDeployMarketMakerV2(
+            token, p.mmMinProfitBps, p.mmWithdrawLaunchLockUntil, MERA_FUND, POC_ROYALTY, POC_BUYBACK
+        );
+        emit MarketMakerV2Deployed(marketMakerV2, token, p.mmMinProfitBps, p.mmWithdrawLaunchLockUntil);
+
+        SetMarketMakerOnPocsLibrary.executeSetMarketMakerOnPocs(pocAddresses, marketMakerV2);
+
+        DataTypes.ConstructorParams memory initParams = p.daoInitParams;
+        DaoProxyLibrary.DeployDaoProxyResult memory proxyResult =
+            DaoProxyLibrary.executeDeployDaoProxy(token, initParams, pocAddresses, DAO_IMPLEMENTATION);
+        daoProxy = proxyResult.daoProxy;
+        voting = proxyResult.voting;
+        {
+            IMultisig.LPPoolConfig[] memory lpPoolConfigs = new IMultisig.LPPoolConfig[](1);
+            lpPoolConfigs[0] = IMultisig.LPPoolConfig({params: p.multisigLpPoolParams, shareBps: 10_000});
+            multisig = MultisigDeployLibrary.executeDeployMultisig(
+                p.multisigPrimary,
+                p.multisigBackup,
+                p.multisigEmergency,
+                self,
+                daoProxy,
+                p.multisigTargetCollateral,
+                p.uniswapV3Router,
+                p.uniswapV3PositionManager,
+                lpPoolConfigs,
+                p.multisigCollaterals,
+                p.returnWalletAddress
+            );
+        }
+        returnWallet = p.returnWalletAddress;
+
+        emit VotingDeployed(voting);
+        emit DaoProxyDeployed(daoProxy, DAO_IMPLEMENTATION);
+        emit MultisigDeployed(multisig, daoProxy);
+
+        SetDaoEverywhereLibrary.executeSetDaoEverywhere(
+            daoProxy, returnBurn, pocAddresses, marketMakerV2, returnWallet, self
+        );
+        FinalizeRightsLibrary.executeFinalizeRights(daoProxy, multisig, p.finalAdmin, pocAddresses, marketMakerV2);
+
+        return (token, returnBurn, pocAddresses, marketMakerV2, daoProxy, voting, multisig, returnWallet);
+    }
 }
