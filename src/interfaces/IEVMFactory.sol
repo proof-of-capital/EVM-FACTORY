@@ -29,8 +29,42 @@ interface IEVMFactory {
         address finalAdmin;
     }
 
+    /// @param launchToken Already deployed launch token; must implement IERC20Burnable (e.g. BurnableToken).
+    struct DeployWithExistingTokenParams {
+        address launchToken;
+        uint256 mmMinProfitBps;
+        uint256 mmWithdrawLaunchLockUntil;
+        IProofOfCapital.InitParams[] pocParams;
+        DataTypes.ConstructorParams daoInitParams;
+        address[] multisigPrimary;
+        address[] multisigBackup;
+        address[] multisigEmergency;
+        uint256 multisigTargetCollateral;
+        address uniswapV3Router;
+        address uniswapV3PositionManager;
+        IMultisig.LPPoolParams multisigLpPoolParams;
+        IMultisig.CollateralConstructorParams[] multisigCollaterals;
+        address returnWalletAddress;
+        address finalAdmin;
+    }
+
     /// @notice Deploys the full EVM stack: Token, ReturnBurn, POC contracts, RebalanceV2, DAO (proxy + Voting + Multisig), wires DAO and finalizes rights.
     function deployAll(DeployAllParams calldata p)
+        external
+        returns (
+            address token,
+            address returnBurn,
+            address[] memory pocAddresses,
+            address marketMakerV2,
+            address daoProxy,
+            address voting,
+            address multisig,
+            address returnWallet
+        );
+
+    /// @notice Deploys the full EVM stack for an existing launch token: ReturnBurn, POC, MarketMakerV2, DAO, Multisig; wires DAO and finalizes rights. Does not deploy a new token.
+    /// @param p launchToken must be non-zero and implement IERC20Burnable.
+    function deployWithExistingToken(DeployWithExistingTokenParams calldata p)
         external
         returns (
             address token,
@@ -58,6 +92,8 @@ interface IEVMFactory {
     // Deployment events (one per deployed contract / logical step)
     // -------------------------------------------------------------------------
     event TokenDeployed(address indexed token, string name, string symbol, uint256 totalSupply, address initialHolder);
+
+    event ExistingTokenUsed(address indexed token);
 
     event ReturnBurnDeployed(address indexed returnBurn, address indexed launchToken);
 

@@ -11,8 +11,11 @@ import {MockERC20} from "DAO-EVM/mocks/MockERC20.sol";
 import {MockPriceOracle} from "DAO-EVM/mocks/MockPriceOracle.sol";
 import {IProofOfCapital} from "EVM/interfaces/IProofOfCapital.sol";
 import {Constants} from "EVM/utils/Constant.sol";
+import {BurnableToken} from "../src/BurnableToken.sol";
 
 contract EVMFactoryTest is Test {
+    event ExistingTokenUsed(address indexed token);
+
     EVMFactory public factory;
 
     address public daoImplementation;
@@ -101,6 +104,74 @@ contract EVMFactoryTest is Test {
         // Factory overwrites daoInitParams.launchToken with deployed token; DAO must store it
         DataTypes.CoreConfig memory config = DAO(payable(daoProxy)).coreConfig();
         assertEq(config.launchToken, token, "DAO launchToken must equal deployed token");
+    }
+
+    // ---------- deployWithExistingToken tests ----------
+
+    function test_EVMFactory_DeployWithExistingToken_Succeeds() public {
+        vm.warp(1672531200);
+
+        BurnableToken launchToken = new BurnableToken("Existing Launch", "ELAUNCH", 1_000_000e18, address(this));
+        IEVMFactory.DeployWithExistingTokenParams memory p = _buildParamsForExistingToken(address(launchToken));
+
+        vm.expectEmit(true, true, false, false);
+        emit ExistingTokenUsed(address(launchToken));
+
+        (
+            address token,
+            address returnBurn,
+            address[] memory pocAddresses,
+            address marketMakerV2,
+            address daoProxy,
+            address voting,
+            address multisig,
+            address returnWallet
+        ) = factory.deployWithExistingToken(p);
+
+        assertEq(token, address(launchToken), "returned token must equal provided launchToken");
+        assertTrue(returnBurn != address(0), "returnBurn");
+        assertEq(pocAddresses.length, 1, "pocAddresses.length");
+        assertTrue(pocAddresses[0] != address(0), "pocAddresses[0]");
+        assertTrue(marketMakerV2 != address(0), "marketMakerV2");
+        assertTrue(daoProxy != address(0), "daoProxy");
+        assertTrue(voting != address(0), "voting");
+        assertTrue(multisig != address(0), "multisig");
+        assertTrue(returnWallet != address(0), "returnWallet");
+
+        DataTypes.CoreConfig memory config = DAO(payable(daoProxy)).coreConfig();
+        assertEq(config.launchToken, address(launchToken), "DAO launchToken must equal provided token");
+    }
+
+    function test_EVMFactory_DeployWithExistingToken_RevertWhen_ZeroLaunchToken() public {
+        vm.warp(1672531200);
+        IEVMFactory.DeployWithExistingTokenParams memory p = _buildParamsForExistingToken(address(0));
+
+        vm.expectRevert(IEVMFactory.ZeroLaunchToken.selector);
+        factory.deployWithExistingToken(p);
+    }
+
+    function _buildParamsForExistingToken(address launchToken)
+        internal
+        returns (IEVMFactory.DeployWithExistingTokenParams memory)
+    {
+        IEVMFactory.DeployAllParams memory allParams = _buildMinimalDeployParams();
+        return IEVMFactory.DeployWithExistingTokenParams({
+            launchToken: launchToken,
+            mmMinProfitBps: allParams.mmMinProfitBps,
+            mmWithdrawLaunchLockUntil: allParams.mmWithdrawLaunchLockUntil,
+            pocParams: allParams.pocParams,
+            daoInitParams: allParams.daoInitParams,
+            multisigPrimary: allParams.multisigPrimary,
+            multisigBackup: allParams.multisigBackup,
+            multisigEmergency: allParams.multisigEmergency,
+            multisigTargetCollateral: allParams.multisigTargetCollateral,
+            uniswapV3Router: allParams.uniswapV3Router,
+            uniswapV3PositionManager: allParams.uniswapV3PositionManager,
+            multisigLpPoolParams: allParams.multisigLpPoolParams,
+            multisigCollaterals: allParams.multisigCollaterals,
+            returnWalletAddress: allParams.returnWalletAddress,
+            finalAdmin: allParams.finalAdmin
+        });
     }
 
     function _buildMinimalDeployParams() internal returns (IEVMFactory.DeployAllParams memory) {
