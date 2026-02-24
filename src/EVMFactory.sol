@@ -90,14 +90,19 @@ contract EVMFactory is Ownable, IEVMFactory {
             address holder = p.tokenInitialHolder == address(0) ? self : p.tokenInitialHolder;
             emit TokenDeployed(token, p.tokenName, p.tokenSymbol, p.tokenTotalSupply, holder);
         }
-        if (p.v3PoolCreateParams.sqrtPriceX96 != 0) {
-            _createV3PoolIfRequested(
-                token,
-                p.daoInitParams.mainCollateral,
-                p.multisigLpPoolParams.fee,
-                p.v3PoolCreateParams.sqrtPriceX96,
-                p.uniswapV3PositionManager
-            );
+        if (p.v3PoolCreateParams.length > 0) {
+            for (uint256 i = 0; i < p.v3PoolCreateParams.length; i++) {
+                IEVMFactory.V3PoolCreateParams calldata poolParams = p.v3PoolCreateParams[i];
+                if (poolParams.sqrtPriceX96 != 0) {
+                    _createV3PoolIfRequested(
+                        token,
+                        p.daoInitParams.mainCollateral,
+                        poolParams.params.fee,
+                        poolParams.sqrtPriceX96,
+                        p.uniswapV3PositionManager
+                    );
+                }
+            }
         }
 
         returnBurn = ReturnBurnDeployLibrary.executeDeployReturnBurn(token);
@@ -121,8 +126,21 @@ contract EVMFactory is Ownable, IEVMFactory {
         daoProxy = proxyResult.daoProxy;
         voting = proxyResult.voting;
         {
-            IMultisig.LPPoolConfig[] memory lpPoolConfigs = new IMultisig.LPPoolConfig[](1);
-            lpPoolConfigs[0] = IMultisig.LPPoolConfig({params: p.multisigLpPoolParams, shareBps: 10_000});
+            IMultisig.LPPoolConfig[] memory lpPoolConfigs;
+            if (p.v3PoolCreateParams.length > 0) {
+                uint256 totalShareBps;
+                lpPoolConfigs = new IMultisig.LPPoolConfig[](p.v3PoolCreateParams.length);
+                for (uint256 i = 0; i < p.v3PoolCreateParams.length; i++) {
+                    totalShareBps += p.v3PoolCreateParams[i].shareBps;
+                    lpPoolConfigs[i] = IMultisig.LPPoolConfig({
+                        params: p.v3PoolCreateParams[i].params, shareBps: p.v3PoolCreateParams[i].shareBps
+                    });
+                }
+                if (totalShareBps != 10_000) revert InvalidV3PoolCreateParams();
+            } else {
+                lpPoolConfigs = new IMultisig.LPPoolConfig[](1);
+                lpPoolConfigs[0] = IMultisig.LPPoolConfig({params: p.multisigLpPoolParams, shareBps: 10_000});
+            }
             multisig = MultisigDeployLibrary.executeDeployMultisig(
                 p.multisigPrimary,
                 p.multisigBackup,
@@ -167,14 +185,19 @@ contract EVMFactory is Ownable, IEVMFactory {
         if (p.launchToken == address(0)) revert ZeroLaunchToken();
         token = p.launchToken;
         emit ExistingTokenUsed(token);
-        if (p.v3PoolCreateParams.sqrtPriceX96 != 0) {
-            _createV3PoolIfRequested(
-                token,
-                p.daoInitParams.mainCollateral,
-                p.multisigLpPoolParams.fee,
-                p.v3PoolCreateParams.sqrtPriceX96,
-                p.uniswapV3PositionManager
-            );
+        if (p.v3PoolCreateParams.length > 0) {
+            for (uint256 i = 0; i < p.v3PoolCreateParams.length; i++) {
+                IEVMFactory.V3PoolCreateParams calldata poolParams = p.v3PoolCreateParams[i];
+                if (poolParams.sqrtPriceX96 != 0) {
+                    _createV3PoolIfRequested(
+                        token,
+                        p.daoInitParams.mainCollateral,
+                        poolParams.params.fee,
+                        poolParams.sqrtPriceX96,
+                        p.uniswapV3PositionManager
+                    );
+                }
+            }
         }
 
         address self = address(this);
@@ -200,8 +223,21 @@ contract EVMFactory is Ownable, IEVMFactory {
         daoProxy = proxyResult.daoProxy;
         voting = proxyResult.voting;
         {
-            IMultisig.LPPoolConfig[] memory lpPoolConfigs = new IMultisig.LPPoolConfig[](1);
-            lpPoolConfigs[0] = IMultisig.LPPoolConfig({params: p.multisigLpPoolParams, shareBps: 10_000});
+            IMultisig.LPPoolConfig[] memory lpPoolConfigs;
+            if (p.v3PoolCreateParams.length > 0) {
+                uint256 totalShareBps;
+                lpPoolConfigs = new IMultisig.LPPoolConfig[](p.v3PoolCreateParams.length);
+                for (uint256 i = 0; i < p.v3PoolCreateParams.length; i++) {
+                    totalShareBps += p.v3PoolCreateParams[i].shareBps;
+                    lpPoolConfigs[i] = IMultisig.LPPoolConfig({
+                        params: p.v3PoolCreateParams[i].params, shareBps: p.v3PoolCreateParams[i].shareBps
+                    });
+                }
+                if (totalShareBps != 10_000) revert InvalidV3PoolCreateParams();
+            } else {
+                lpPoolConfigs = new IMultisig.LPPoolConfig[](1);
+                lpPoolConfigs[0] = IMultisig.LPPoolConfig({params: p.multisigLpPoolParams, shareBps: 10_000});
+            }
             multisig = MultisigDeployLibrary.executeDeployMultisig(
                 p.multisigPrimary,
                 p.multisigBackup,

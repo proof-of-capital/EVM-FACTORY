@@ -8,9 +8,11 @@ import {IMultisig} from "DAO-EVM/interfaces/IMultisig.sol";
 /// @title IEVMFactory
 /// @notice Interface for EVMFactory: errors and events for deployment of the full EVM stack.
 interface IEVMFactory {
-    /// @notice Parameters for creating and initializing a Uniswap V3 pool (launchToken/mainCollateral). If sqrtPriceX96 is 0, factory does not create the pool.
+    /// @notice Parameters for one V3 pool: LP params (fee, ticks, amounts), initial sqrt price when creating the pool (0 = do not create in factory), and share of liquidity in basis points.
     struct V3PoolCreateParams {
-        uint160 sqrtPriceX96; // Initial sqrt price (Q64.96) when creating the pool; 0 = do not create pool in factory
+        IMultisig.LPPoolParams params; // fee, tickLower, tickUpper, amount0Min, amount1Min
+        uint160 sqrtPriceX96; // Initial sqrt price (Q64.96) when creating the pool; 0 = do not create this pool in factory
+        uint256 shareBps; // Share of liquidity for this pool; sum over array must be 10_000 when array is used
     }
 
     struct DeployAllParams {
@@ -29,7 +31,7 @@ interface IEVMFactory {
         address uniswapV3Router;
         address uniswapV3PositionManager;
         IMultisig.LPPoolParams multisigLpPoolParams;
-        V3PoolCreateParams v3PoolCreateParams;
+        V3PoolCreateParams[] v3PoolCreateParams;
         IMultisig.CollateralConstructorParams[] multisigCollaterals;
         address returnWalletAddress;
         address finalAdmin;
@@ -49,7 +51,7 @@ interface IEVMFactory {
         address uniswapV3Router;
         address uniswapV3PositionManager;
         IMultisig.LPPoolParams multisigLpPoolParams;
-        V3PoolCreateParams v3PoolCreateParams;
+        V3PoolCreateParams[] v3PoolCreateParams;
         IMultisig.CollateralConstructorParams[] multisigCollaterals;
         address returnWalletAddress;
         address finalAdmin;
@@ -94,6 +96,7 @@ interface IEVMFactory {
     error ZeroLaunchToken();
     error ZeroPlaceholder();
     error PocParamsLengthMismatch();
+    error InvalidV3PoolCreateParams();
 
     // -------------------------------------------------------------------------
     // Deployment events (one per deployed contract / logical step)

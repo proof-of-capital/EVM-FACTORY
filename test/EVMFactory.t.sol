@@ -175,6 +175,18 @@ contract EVMFactoryTest is Test {
         });
     }
 
+    function _singleV3PoolCreateParams() internal pure returns (IEVMFactory.V3PoolCreateParams[] memory) {
+        IEVMFactory.V3PoolCreateParams[] memory arr = new IEVMFactory.V3PoolCreateParams[](1);
+        arr[0] = IEVMFactory.V3PoolCreateParams({
+            params: IMultisig.LPPoolParams({
+                fee: 3000, tickLower: -887220, tickUpper: 887220, amount0Min: 1, amount1Min: 1
+            }),
+            sqrtPriceX96: 0,
+            shareBps: 10_000
+        });
+        return arr;
+    }
+
     function _buildMinimalDeployParams() internal returns (IEVMFactory.DeployAllParams memory) {
         // POC InitParams (factory overwrites launchToken, returnWallet, dao, RETURN_BURN; we set collateralToken)
         IProofOfCapital.InitParams[] memory pocParams = new IProofOfCapital.InitParams[](1);
@@ -284,7 +296,7 @@ contract EVMFactoryTest is Test {
             multisigLpPoolParams: IMultisig.LPPoolParams({
                 fee: 3000, tickLower: -887220, tickUpper: 887220, amount0Min: 1, amount1Min: 1
             }),
-            v3PoolCreateParams: IEVMFactory.V3PoolCreateParams({sqrtPriceX96: 0}),
+            v3PoolCreateParams: _singleV3PoolCreateParams(),
             multisigCollaterals: new IMultisig.CollateralConstructorParams[](0),
             returnWalletAddress: returnWalletAddr,
             finalAdmin: finalAdminAddr
