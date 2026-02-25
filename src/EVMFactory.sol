@@ -54,9 +54,7 @@ contract EVMFactory is Ownable, IEVMFactory {
     address public immutable MERA_FUND;
     address public immutable POC_ROYALTY;
 
-    constructor(address _daoImplementation, address _meraFund, address _pocRoyalty)
-        Ownable(msg.sender)
-    {
+    constructor(address _daoImplementation, address _meraFund, address _pocRoyalty) Ownable(msg.sender) {
         if (_daoImplementation == address(0)) revert ZeroDaoImplementation();
         if (_meraFund == address(0)) revert ZeroMeraFund();
         if (_pocRoyalty == address(0)) revert ZeroPocRoyalty();
