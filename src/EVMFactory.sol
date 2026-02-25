@@ -53,19 +53,16 @@ contract EVMFactory is Ownable, IEVMFactory {
     address public immutable DAO_IMPLEMENTATION;
     address public immutable MERA_FUND;
     address public immutable POC_ROYALTY;
-    address public immutable POC_BUYBACK;
 
-    constructor(address _daoImplementation, address _meraFund, address _pocRoyalty, address _pocBuyback)
+    constructor(address _daoImplementation, address _meraFund, address _pocRoyalty)
         Ownable(msg.sender)
     {
         if (_daoImplementation == address(0)) revert ZeroDaoImplementation();
         if (_meraFund == address(0)) revert ZeroMeraFund();
         if (_pocRoyalty == address(0)) revert ZeroPocRoyalty();
-        if (_pocBuyback == address(0)) revert ZeroPocBuyback();
         DAO_IMPLEMENTATION = _daoImplementation;
         MERA_FUND = _meraFund;
         POC_ROYALTY = _pocRoyalty;
-        POC_BUYBACK = _pocBuyback;
     }
 
     function deployAll(IEVMFactory.DeployAllParams calldata p)
@@ -114,7 +111,7 @@ contract EVMFactory is Ownable, IEVMFactory {
         }
 
         marketMakerV2 = MarketMakerV2Library.executeDeployMarketMakerV2(
-            token, p.mmMinProfitBps, p.mmWithdrawLaunchLockUntil, MERA_FUND, POC_ROYALTY, POC_BUYBACK
+            token, p.mmMinProfitBps, p.mmWithdrawLaunchLockUntil, MERA_FUND, POC_ROYALTY, p.returnWalletAddress
         );
         emit MarketMakerV2Deployed(marketMakerV2, token, p.mmMinProfitBps, p.mmWithdrawLaunchLockUntil);
 
@@ -211,7 +208,7 @@ contract EVMFactory is Ownable, IEVMFactory {
         }
 
         marketMakerV2 = MarketMakerV2Library.executeDeployMarketMakerV2(
-            token, p.mmMinProfitBps, p.mmWithdrawLaunchLockUntil, MERA_FUND, POC_ROYALTY, POC_BUYBACK
+            token, p.mmMinProfitBps, p.mmWithdrawLaunchLockUntil, MERA_FUND, POC_ROYALTY, p.returnWalletAddress
         );
         emit MarketMakerV2Deployed(marketMakerV2, token, p.mmMinProfitBps, p.mmWithdrawLaunchLockUntil);
 

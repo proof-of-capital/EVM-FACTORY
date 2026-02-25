@@ -21,7 +21,6 @@ contract EVMFactoryTest is Test {
     address public daoImplementation;
     address public meraFund;
     address public pocRoyalty;
-    address public pocBuyback;
 
     // For deployAll test
     MockERC20 public collateralToken;
@@ -33,9 +32,8 @@ contract EVMFactoryTest is Test {
         daoImplementation = address(impl);
         meraFund = makeAddr("meraFund");
         pocRoyalty = makeAddr("pocRoyalty");
-        pocBuyback = makeAddr("pocBuyback");
 
-        factory = new EVMFactory(daoImplementation, meraFund, pocRoyalty, pocBuyback);
+        factory = new EVMFactory(daoImplementation, meraFund, pocRoyalty);
 
         // Mocks for deployAll (collateral for POC, mainCollateral and oracle for DAO)
         collateralToken = new MockERC20("Collateral", "COL", 18);
@@ -50,28 +48,22 @@ contract EVMFactoryTest is Test {
         assertEq(factory.DAO_IMPLEMENTATION(), daoImplementation);
         assertEq(factory.MERA_FUND(), meraFund);
         assertEq(factory.POC_ROYALTY(), pocRoyalty);
-        assertEq(factory.POC_BUYBACK(), pocBuyback);
         assertEq(factory.owner(), address(this));
     }
 
     function test_EVMFactory_Deploy_RevertWhen_ZeroDaoImplementation() public {
         vm.expectRevert(IEVMFactory.ZeroDaoImplementation.selector);
-        new EVMFactory(address(0), meraFund, pocRoyalty, pocBuyback);
+        new EVMFactory(address(0), meraFund, pocRoyalty);
     }
 
     function test_EVMFactory_Deploy_RevertWhen_ZeroMeraFund() public {
         vm.expectRevert(IEVMFactory.ZeroMeraFund.selector);
-        new EVMFactory(daoImplementation, address(0), pocRoyalty, pocBuyback);
+        new EVMFactory(daoImplementation, address(0), pocRoyalty);
     }
 
     function test_EVMFactory_Deploy_RevertWhen_ZeroPocRoyalty() public {
         vm.expectRevert(IEVMFactory.ZeroPocRoyalty.selector);
-        new EVMFactory(daoImplementation, meraFund, address(0), pocBuyback);
-    }
-
-    function test_EVMFactory_Deploy_RevertWhen_ZeroPocBuyback() public {
-        vm.expectRevert(IEVMFactory.ZeroPocBuyback.selector);
-        new EVMFactory(daoImplementation, meraFund, pocRoyalty, address(0));
+        new EVMFactory(daoImplementation, meraFund, address(0));
     }
 
     // ---------- deployAll integration test ----------

@@ -92,7 +92,6 @@ interface IEVMFactory {
     error ZeroDaoImplementation();
     error ZeroMeraFund();
     error ZeroPocRoyalty();
-    error ZeroPocBuyback();
     error ZeroLaunchToken();
     error ZeroPlaceholder();
     error PocParamsLengthMismatch();

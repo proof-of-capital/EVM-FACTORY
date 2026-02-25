@@ -116,7 +116,7 @@ deploy-dao-implementation:
 # Full DAO libs + implementation (convenience: step1 -> step2 -> step3 -> implementation). Uses RPC_URL (default: local).
 deploy-dao-implementation-full-local: deploy-dao-libraries-step1 deploy-dao-libraries-step2 deploy-dao-libraries-step3 deploy-dao-implementation
 
-# EVMFactory. Requires .dao_implementation.env (DAO_IMPLEMENTATION), .dao_library_addresses.env (multisig libs), and .env (MERA_FUND, POC_ROYALTY, POC_BUYBACK)
+# EVMFactory. Requires .dao_implementation.env (DAO_IMPLEMENTATION), .dao_library_addresses.env (multisig libs), and .env (MERA_FUND, POC_ROYALTY)
 # Load .dao_implementation.env after .env so deployment-written address overrides any placeholder in .env
 deploy-factory:
 	@set -a && [ -f .env ] && . ./.env; [ -f .dao_library_addresses.env ] && . ./.dao_library_addresses.env; [ -f .dao_implementation.env ] && . ./.dao_implementation.env; set +a && \
@@ -193,7 +193,7 @@ help:
 	@echo "  make deploy-dao-libraries-step3  - Deploy DAO-EVM libs step3 (CreatorLibrary, ConfigLibrary)"
 	@echo "  make deploy-dao-implementation   - Deploy DAO implementation for EVMFactory"
 	@echo "  make deploy-dao-implementation-full-local - Step1 + Step2 + Step3 + implementation in one go"
-	@echo "  make deploy-factory              - Deploy EVMFactory (needs .dao_library_addresses.env, DAO_IMPLEMENTATION, MERA_FUND, POC_ROYALTY, POC_BUYBACK)"
+	@echo "  make deploy-factory              - Deploy EVMFactory (needs .dao_library_addresses.env, DAO_IMPLEMENTATION, MERA_FUND, POC_ROYALTY)"
 	@echo "  make deploy-factory-bsc-testnet   - Deploy EVMFactory on BSC testnet (same deps; sets RPC, GAS_PRICE, VERIFY)"
 	@echo ""
 	@echo "  make help            - Show this help message"
@@ -203,4 +203,4 @@ help:
 	@echo "  - RPC_URL_*: RPC URLs for the networks you want to deploy to"
 	@echo "  - For block explorer verification: set *_API_KEY in .env (see .env.example); deploy-all-<network> uses the matching key automatically"
 	@echo "  - For BSC testnet: set GAS_PRICE=1000000000 (1 gwei) if transactions fail with 'gas price below minimum'"
-	@echo "  - For EVMFactory: MERA_FUND, POC_ROYALTY, POC_BUYBACK (DAO_IMPLEMENTATION set by deploy-dao-implementation)"
+	@echo "  - For EVMFactory: MERA_FUND, POC_ROYALTY (DAO_IMPLEMENTATION set by deploy-dao-implementation)"

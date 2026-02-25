@@ -7,17 +7,16 @@ import {EVMFactory} from "../src/EVMFactory.sol";
 /// @title DeployEVMFactoryScript
 /// @notice Deploys EVMFactory with DAO implementation and profit wallet addresses.
 /// @dev Requires DAO_IMPLEMENTATION (from DeployDaoImplementation). Optionally load from .dao_implementation.env.
-///      Set MERA_FUND, POC_ROYALTY, POC_BUYBACK in .env or export before running.
+///      Set MERA_FUND, POC_ROYALTY in .env or export before running.
 contract DeployEVMFactoryScript is Script {
     function run() public returns (EVMFactory factory) {
         address daoImplementation = vm.envAddress("DAO_IMPLEMENTATION");
         address meraFund = vm.envAddress("MERA_FUND");
         address pocRoyalty = vm.envAddress("POC_ROYALTY");
-        address pocBuyback = vm.envAddress("POC_BUYBACK");
 
         vm.startBroadcast();
 
-        factory = new EVMFactory(daoImplementation, meraFund, pocRoyalty, pocBuyback);
+        factory = new EVMFactory(daoImplementation, meraFund, pocRoyalty);
 
         vm.stopBroadcast();
 
@@ -25,6 +24,5 @@ contract DeployEVMFactoryScript is Script {
         console.log("  DAO_IMPLEMENTATION:", daoImplementation);
         console.log("  MERA_FUND:", meraFund);
         console.log("  POC_ROYALTY:", pocRoyalty);
-        console.log("  POC_BUYBACK:", pocBuyback);
     }
 }
