@@ -12,15 +12,21 @@ import {MockPriceOracle} from "DAO-EVM/mocks/MockPriceOracle.sol";
 import {IProofOfCapital} from "EVM/interfaces/IProofOfCapital.sol";
 import {Constants} from "EVM/utils/Constant.sol";
 import {BurnableToken} from "../src/BurnableToken.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract EVMFactoryTest is Test {
     event ExistingTokenUsed(address indexed token);
+    event DaoImplementationUpdated(address indexed oldImplementation, address indexed newImplementation);
+    event AllowedDaoImplementationSet(address indexed impl, bool allowed);
+    event PocRoyaltyUpdated(address indexed oldRoyalty, address indexed newRoyalty);
 
     EVMFactory public factory;
 
     address public daoImplementation;
     address public meraFund;
-    address public pocRoyalty;
+    address public pocRoyaltyForInitialDeploy;
+    address public initialReturnWallet;
 
     // For deployAll test
     MockERC20 public collateralToken;
@@ -31,39 +37,151 @@ contract EVMFactoryTest is Test {
         DAO impl = new DAO();
         daoImplementation = address(impl);
         meraFund = makeAddr("meraFund");
-        pocRoyalty = makeAddr("pocRoyalty");
+        pocRoyaltyForInitialDeploy = makeAddr("pocRoyaltyForInitial");
+        initialReturnWallet = makeAddr("initialReturnWallet");
 
-        factory = new EVMFactory(daoImplementation, meraFund, pocRoyalty);
-
-        // Mocks for deployAll (collateral for POC, mainCollateral and oracle for DAO)
+        // Mocks for initial DAO and deployAll (collateral for POC, mainCollateral and oracle for DAO)
         collateralToken = new MockERC20("Collateral", "COL", 18);
         mainCollateral = new MockERC20("USDC", "USDC", 18);
         priceOracle = new MockPriceOracle();
         priceOracle.setAssetPrice(address(mainCollateral), 1e18);
+
+        BurnableToken initialLaunchToken = new BurnableToken("Initial Launch", "ILAUNCH", 1_000_000e18, address(this));
+        IEVMFactory.DeployWithExistingTokenParams memory initialDaoParams =
+            _buildParamsForExistingTokenWithRoyalty(address(initialLaunchToken), pocRoyaltyForInitialDeploy);
+        initialDaoParams.returnWalletAddress = initialReturnWallet;
+
+        factory = new EVMFactory(daoImplementation, meraFund, pocRoyaltyForInitialDeploy, initialDaoParams);
     }
 
     // ---------- Constructor tests ----------
 
     function test_EVMFactory_Deploy_Success() public view {
-        assertEq(factory.DAO_IMPLEMENTATION(), daoImplementation);
+        assertEq(factory.daoImplementation(), daoImplementation);
+        assertTrue(factory.allowedDaoImplementations(daoImplementation), "initial daoImplementation must be allowed");
         assertEq(factory.MERA_FUND(), meraFund);
-        assertEq(factory.POC_ROYALTY(), pocRoyalty);
+        assertEq(factory.pocRoyalty(), initialReturnWallet, "pocRoyalty must be initial DAO return wallet");
+        assertTrue(factory.INITIAL_DAO() != address(0), "INITIAL_DAO");
+        assertTrue(factory.INITIAL_MULTISIG() != address(0), "INITIAL_MULTISIG");
         assertEq(factory.owner(), address(this));
     }
 
     function test_EVMFactory_Deploy_RevertWhen_ZeroDaoImplementation() public {
+        BurnableToken t = new BurnableToken("L", "L", 1e18, address(this));
+        IEVMFactory.DeployWithExistingTokenParams memory params = _buildParamsForExistingToken(address(t));
+        params.returnWalletAddress = initialReturnWallet;
         vm.expectRevert(IEVMFactory.ZeroDaoImplementation.selector);
-        new EVMFactory(address(0), meraFund, pocRoyalty);
+        new EVMFactory(address(0), meraFund, pocRoyaltyForInitialDeploy, params);
     }
 
     function test_EVMFactory_Deploy_RevertWhen_ZeroMeraFund() public {
+        BurnableToken t = new BurnableToken("L", "L", 1e18, address(this));
+        IEVMFactory.DeployWithExistingTokenParams memory params = _buildParamsForExistingToken(address(t));
+        params.returnWalletAddress = initialReturnWallet;
         vm.expectRevert(IEVMFactory.ZeroMeraFund.selector);
-        new EVMFactory(daoImplementation, address(0), pocRoyalty);
+        new EVMFactory(daoImplementation, address(0), pocRoyaltyForInitialDeploy, params);
     }
 
     function test_EVMFactory_Deploy_RevertWhen_ZeroPocRoyalty() public {
+        BurnableToken t = new BurnableToken("L", "L", 1e18, address(this));
+        IEVMFactory.DeployWithExistingTokenParams memory params = _buildParamsForExistingToken(address(t));
+        params.returnWalletAddress = initialReturnWallet;
         vm.expectRevert(IEVMFactory.ZeroPocRoyalty.selector);
-        new EVMFactory(daoImplementation, meraFund, address(0));
+        new EVMFactory(daoImplementation, meraFund, address(0), params);
+    }
+
+    function test_EVMFactory_Deploy_RevertWhen_ZeroReturnWallet() public {
+        BurnableToken t = new BurnableToken("L", "L", 1e18, address(this));
+        IEVMFactory.DeployWithExistingTokenParams memory params = _buildParamsForExistingToken(address(t));
+        params.returnWalletAddress = address(0);
+        vm.expectRevert(IEVMFactory.ZeroReturnWallet.selector);
+        new EVMFactory(daoImplementation, meraFund, pocRoyaltyForInitialDeploy, params);
+    }
+
+    // ---------- setDaoImplementation tests ----------
+
+    function test_setDaoImplementation_Success() public {
+        address newImpl = makeAddr("newDaoImpl");
+        assertEq(factory.daoImplementation(), daoImplementation);
+
+        vm.expectEmit(true, true, false, false);
+        emit DaoImplementationUpdated(daoImplementation, newImpl);
+        factory.setDaoImplementation(newImpl);
+
+        assertEq(factory.daoImplementation(), newImpl);
+    }
+
+    function test_setDaoImplementation_RevertWhen_NotOwner() public {
+        address nonOwner = makeAddr("nonOwner");
+        address newImpl = makeAddr("newDaoImpl");
+
+        vm.prank(nonOwner);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, nonOwner));
+        factory.setDaoImplementation(newImpl);
+    }
+
+    function test_setDaoImplementation_RevertWhen_ZeroAddress() public {
+        vm.expectRevert(IEVMFactory.ZeroDaoImplementation.selector);
+        factory.setDaoImplementation(address(0));
+    }
+
+    // ---------- setAllowedDaoImplementation tests ----------
+
+    function test_setAllowedDaoImplementation_Success() public {
+        address impl = makeAddr("allowedImpl");
+        assertFalse(factory.allowedDaoImplementations(impl));
+
+        vm.expectEmit(true, true, false, false);
+        emit AllowedDaoImplementationSet(impl, true);
+        factory.setAllowedDaoImplementation(impl, true);
+        assertTrue(factory.allowedDaoImplementations(impl));
+
+        vm.expectEmit(true, true, false, false);
+        emit AllowedDaoImplementationSet(impl, false);
+        factory.setAllowedDaoImplementation(impl, false);
+        assertFalse(factory.allowedDaoImplementations(impl));
+    }
+
+    function test_setAllowedDaoImplementation_RevertWhen_NotOwner() public {
+        address nonOwner = makeAddr("nonOwner");
+        address impl = makeAddr("impl");
+
+        vm.prank(nonOwner);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, nonOwner));
+        factory.setAllowedDaoImplementation(impl, true);
+    }
+
+    function test_setAllowedDaoImplementation_RevertWhen_ZeroAddress() public {
+        vm.expectRevert(IEVMFactory.ZeroAddress.selector);
+        factory.setAllowedDaoImplementation(address(0), true);
+    }
+
+    // ---------- setPocRoyalty tests ----------
+
+    function test_setPocRoyalty_Success() public {
+        address newRoyalty = makeAddr("newPocRoyalty");
+        address currentRoyalty = factory.pocRoyalty();
+        assertNotEq(currentRoyalty, address(0));
+
+        vm.expectEmit(true, true, false, false);
+        emit PocRoyaltyUpdated(currentRoyalty, newRoyalty);
+        factory.setPocRoyalty(newRoyalty);
+
+        assertEq(factory.pocRoyalty(), newRoyalty);
+    }
+
+    function test_setPocRoyalty_RevertWhen_NotOwner() public {
+        address nonOwner = makeAddr("nonOwner");
+        address newRoyalty = makeAddr("newPocRoyalty");
+
+        vm.prank(nonOwner);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, nonOwner));
+        factory.setPocRoyalty(newRoyalty);
+    }
+
+    function test_setPocRoyalty_RevertWhen_ZeroAddress() public {
+        vm.expectRevert(IEVMFactory.ZeroPocRoyalty.selector);
+        factory.setPocRoyalty(address(0));
     }
 
     // ---------- deployAll integration test ----------
@@ -96,6 +214,35 @@ contract EVMFactoryTest is Test {
         // Factory overwrites daoInitParams.launchToken with deployed token; DAO must store it
         DataTypes.CoreConfig memory config = DAO(payable(daoProxy)).coreConfig();
         assertEq(config.launchToken, token, "DAO launchToken must equal deployed token");
+
+        // With tokenInitialHolder == 0 and offsetLaunch == 0, factory deposits full supply to POCs by sharePercent
+        assertEq(
+            IERC20(token).balanceOf(pocAddresses[0]),
+            p.tokenTotalSupply,
+            "single POC with 100% share must receive full token supply"
+        );
+    }
+
+    function test_DeployAll_NoDepositToPocsWhenInitialHolderNonZero() public {
+        vm.warp(1672531200);
+        address holder = makeAddr("tokenHolder");
+        IEVMFactory.DeployAllParams memory p = _buildMinimalDeployParams();
+        p.tokenInitialHolder = holder;
+
+        (address token,, address[] memory pocAddresses,,,,,) = factory.deployAll(p);
+
+        assertEq(pocAddresses.length, 1, "one POC");
+        assertEq(IERC20(token).balanceOf(holder), p.tokenTotalSupply, "holder must keep full supply");
+        assertEq(IERC20(token).balanceOf(pocAddresses[0]), 0, "POC must receive no token when holder is set");
+    }
+
+    function test_DeployAll_RevertWhenPocSharePercentSumNotTenThousand() public {
+        vm.warp(1672531200);
+        IEVMFactory.DeployAllParams memory p = _buildMinimalDeployParams();
+        p.daoInitParams.pocParams[0].sharePercent = 5000; // sum 5000 != 10_000
+
+        vm.expectRevert(IEVMFactory.InvalidPocSharePercentSum.selector);
+        factory.deployAll(p);
     }
 
     // ---------- deployWithExistingToken tests ----------
@@ -146,7 +293,14 @@ contract EVMFactoryTest is Test {
         internal
         returns (IEVMFactory.DeployWithExistingTokenParams memory)
     {
-        IEVMFactory.DeployAllParams memory allParams = _buildMinimalDeployParams();
+        return _buildParamsForExistingTokenWithRoyalty(launchToken, factory.pocRoyalty());
+    }
+
+    function _buildParamsForExistingTokenWithRoyalty(address launchToken, address royaltyWalletForPocParams)
+        internal
+        returns (IEVMFactory.DeployWithExistingTokenParams memory)
+    {
+        IEVMFactory.DeployAllParams memory allParams = _buildMinimalDeployParamsWithRoyalty(royaltyWalletForPocParams);
         return IEVMFactory.DeployWithExistingTokenParams({
             launchToken: launchToken,
             mmMinProfitBps: allParams.mmMinProfitBps,
@@ -180,6 +334,13 @@ contract EVMFactoryTest is Test {
     }
 
     function _buildMinimalDeployParams() internal returns (IEVMFactory.DeployAllParams memory) {
+        return _buildMinimalDeployParamsWithRoyalty(factory.pocRoyalty());
+    }
+
+    function _buildMinimalDeployParamsWithRoyalty(address royaltyWalletForPocParams)
+        internal
+        returns (IEVMFactory.DeployAllParams memory)
+    {
         // POC InitParams (factory overwrites launchToken, returnWallet, dao, RETURN_BURN; we set collateralToken)
         IProofOfCapital.InitParams[] memory pocParams = new IProofOfCapital.InitParams[](1);
         pocParams[0] = IProofOfCapital.InitParams({
@@ -187,7 +348,7 @@ contract EVMFactoryTest is Test {
             launchToken: address(0), // overwritten by factory
             marketMakerAddress: address(0), // overwritten by factory
             returnWalletAddress: address(0), // overwritten by factory
-            royaltyWalletAddress: pocRoyalty,
+            royaltyWalletAddress: royaltyWalletForPocParams,
             lockEndTime: block.timestamp + 365 days,
             initialPricePerLaunchToken: 1e18,
             firstLevelLaunchTokenQuantity: 1000e18,
@@ -196,7 +357,7 @@ contract EVMFactoryTest is Test {
             trendChangeStep: 5,
             levelDecreaseMultiplierAfterTrend: 50,
             profitPercentage: 100,
-            offsetLaunch: 10000e18,
+            offsetLaunch: 0, // Must be 0 for depositLaunch in same tx (factory deposits token to POCs)
             controlPeriod: Constants.MIN_CONTROL_PERIOD,
             collateralToken: address(collateralToken),
             royaltyProfitPercent: 500,

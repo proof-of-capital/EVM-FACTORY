@@ -57,6 +57,21 @@ interface IEVMFactory {
         address finalAdmin;
     }
 
+    function INITIAL_DAO() external view returns (address);
+    function INITIAL_MULTISIG() external view returns (address);
+
+    /// @notice Sets the DAO implementation address for future proxy deployments. Only callable by owner (e.g. multisig).
+    function setDaoImplementation(address _daoImplementation) external;
+
+    /// @notice Returns whether a DAO implementation address is allowed.
+    function allowedDaoImplementations(address) external view returns (bool);
+
+    /// @notice Sets whether a DAO implementation address is allowed. Only callable by owner (e.g. multisig).
+    function setAllowedDaoImplementation(address _impl, bool _allowed) external;
+
+    /// @notice Sets the POC royalty address for future deployments. Only callable by owner (e.g. multisig).
+    function setPocRoyalty(address _pocRoyalty) external;
+
     /// @notice Deploys the full EVM stack: Token, ReturnBurn, POC contracts, RebalanceV2, DAO (proxy + Voting + Multisig), wires DAO and finalizes rights.
     function deployAll(DeployAllParams calldata p)
         external
@@ -93,9 +108,13 @@ interface IEVMFactory {
     error ZeroMeraFund();
     error ZeroPocRoyalty();
     error ZeroLaunchToken();
+    error ZeroReturnWallet();
+    error ZeroAddress();
     error ZeroPlaceholder();
     error PocParamsLengthMismatch();
     error InvalidV3PoolCreateParams();
+    /// @notice Sum of sharePercent across daoInitParams.pocParams must equal 10_000 when depositing token to POCs.
+    error InvalidPocSharePercentSum();
 
     // -------------------------------------------------------------------------
     // Deployment events (one per deployed contract / logical step)
@@ -120,4 +139,13 @@ interface IEVMFactory {
     event DaoProxyDeployed(address indexed daoProxy, address indexed implementation);
 
     event MultisigDeployed(address indexed multisig, address indexed daoProxy);
+
+    /// @notice Emitted when the DAO implementation is updated by the owner.
+    event DaoImplementationUpdated(address indexed oldImplementation, address indexed newImplementation);
+
+    /// @notice Emitted when an allowed DAO implementation is set or revoked by the owner.
+    event AllowedDaoImplementationSet(address indexed impl, bool allowed);
+
+    /// @notice Emitted when the POC royalty address is updated by the owner.
+    event PocRoyaltyUpdated(address indexed oldRoyalty, address indexed newRoyalty);
 }

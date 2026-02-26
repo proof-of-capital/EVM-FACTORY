@@ -39,6 +39,7 @@ import {IEVMFactory} from "./interfaces/IEVMFactory.sol";
 import {TokenDeployLibrary} from "./libraries/TokenDeployLibrary.sol";
 import {ReturnBurnDeployLibrary} from "./libraries/ReturnBurnDeployLibrary.sol";
 import {PocDeployLibrary} from "./libraries/PocDeployLibrary.sol";
+import {DepositTokenToPocsLibrary} from "./libraries/DepositTokenToPocsLibrary.sol";
 import {MarketMakerV2Library} from "./libraries/MarketMakerV2Library.sol";
 import {SetMarketMakerOnPocsLibrary} from "./libraries/SetMarketMakerOnPocsLibrary.sol";
 import {DaoProxyLibrary} from "./libraries/DaoProxyLibrary.sol";
@@ -50,17 +51,64 @@ import {IPoolInitializer} from "DAO-EVM/interfaces/IPoolInitializer.sol";
 /// @title EVMFactory
 /// @notice Deploys the full EVM stack: Token, ReturnBurn, POC contracts, RebalanceV2, DAO (proxy + Voting + Multisig), wires DAO and finalizes rights.
 contract EVMFactory is Ownable, IEVMFactory {
-    address public immutable DAO_IMPLEMENTATION;
+    /// @dev DAO implementation used for new proxy deployments. Can be updated by owner (e.g. multisig).
+    address public daoImplementation;
+    /// @dev Allowed DAO implementation addresses; only owner (e.g. multisig) can add/remove via setAllowedDaoImplementation.
+    mapping(address => bool) public allowedDaoImplementations;
     address public immutable MERA_FUND;
-    address public immutable POC_ROYALTY;
+    /// @dev Royalty address for all deployments (after the first one). Set from initial deploy return wallet; can be updated by owner.
+    address public pocRoyalty;
+    address public immutable INITIAL_DAO;
+    address public immutable INITIAL_MULTISIG;
 
-    constructor(address _daoImplementation, address _meraFund, address _pocRoyalty) Ownable(msg.sender) {
-        if (_daoImplementation == address(0)) revert ZeroDaoImplementation();
+    constructor(
+        address _daoImplementation,
+        address _meraFund,
+        address _pocRoyaltyForInitialDeploy,
+        IEVMFactory.DeployWithExistingTokenParams memory initialDaoParams
+    ) Ownable(msg.sender) {
+        if (_daoImplementation == address(0)) {
+            revert ZeroDaoImplementation();
+        }
         if (_meraFund == address(0)) revert ZeroMeraFund();
-        if (_pocRoyalty == address(0)) revert ZeroPocRoyalty();
-        DAO_IMPLEMENTATION = _daoImplementation;
+        if (_pocRoyaltyForInitialDeploy == address(0)) revert ZeroPocRoyalty();
+        if (initialDaoParams.launchToken == address(0)) revert ZeroLaunchToken();
+        if (initialDaoParams.returnWalletAddress == address(0)) revert ZeroReturnWallet();
+        daoImplementation = _daoImplementation;
+        allowedDaoImplementations[_daoImplementation] = true;
         MERA_FUND = _meraFund;
-        POC_ROYALTY = _pocRoyalty;
+        (,,,, address daoProxy,, address multisig, address returnWallet) =
+            _deployStackWithExistingToken(initialDaoParams, _pocRoyaltyForInitialDeploy);
+        INITIAL_DAO = daoProxy;
+        INITIAL_MULTISIG = multisig;
+        pocRoyalty = returnWallet;
+    }
+
+    /// @notice Sets the POC royalty address used for future deployments. Callable only by owner (e.g. multisig).
+    /// @param _pocRoyalty New royalty address; must not be zero.
+    function setPocRoyalty(address _pocRoyalty) external onlyOwner {
+        if (_pocRoyalty == address(0)) revert ZeroPocRoyalty();
+        address oldRoyalty = pocRoyalty;
+        pocRoyalty = _pocRoyalty;
+        emit PocRoyaltyUpdated(oldRoyalty, _pocRoyalty);
+    }
+
+    /// @notice Sets the DAO implementation address used for future proxy deployments. Callable only by owner (e.g. multisig).
+    /// @param _daoImplementation New implementation address; must not be zero.
+    function setDaoImplementation(address _daoImplementation) external onlyOwner {
+        if (_daoImplementation == address(0)) revert ZeroDaoImplementation();
+        address oldImplementation = daoImplementation;
+        daoImplementation = _daoImplementation;
+        emit DaoImplementationUpdated(oldImplementation, _daoImplementation);
+    }
+
+    /// @notice Sets whether a DAO implementation address is allowed. Callable only by owner (e.g. multisig).
+    /// @param _impl Implementation address; must not be zero when setting allowed to true.
+    /// @param _allowed True to allow, false to revoke.
+    function setAllowedDaoImplementation(address _impl, bool _allowed) external onlyOwner {
+        if (_impl == address(0)) revert IEVMFactory.ZeroAddress();
+        allowedDaoImplementations[_impl] = _allowed;
+        emit AllowedDaoImplementationSet(_impl, _allowed);
     }
 
     function deployAll(IEVMFactory.DeployAllParams calldata p)
@@ -108,8 +156,12 @@ contract EVMFactory is Ownable, IEVMFactory {
             emit PocDeployed(pocAddresses[i], token, i);
         }
 
+        if (p.tokenInitialHolder == address(0) && pocAddresses.length > 0) {
+            DepositTokenToPocsLibrary.executeDepositTokenToPocs(token, pocAddresses, p.daoInitParams.pocParams);
+        }
+
         marketMakerV2 = MarketMakerV2Library.executeDeployMarketMakerV2(
-            token, p.mmMinProfitBps, p.mmWithdrawLaunchLockUntil, MERA_FUND, POC_ROYALTY, p.returnWalletAddress
+            token, p.mmMinProfitBps, p.mmWithdrawLaunchLockUntil, MERA_FUND, pocRoyalty, p.returnWalletAddress
         );
         emit MarketMakerV2Deployed(marketMakerV2, token, p.mmMinProfitBps, p.mmWithdrawLaunchLockUntil);
 
@@ -117,7 +169,7 @@ contract EVMFactory is Ownable, IEVMFactory {
 
         DataTypes.ConstructorParams memory initParams = p.daoInitParams;
         DaoProxyLibrary.DeployDaoProxyResult memory proxyResult =
-            DaoProxyLibrary.executeDeployDaoProxy(token, initParams, pocAddresses, DAO_IMPLEMENTATION);
+            DaoProxyLibrary.executeDeployDaoProxy(token, initParams, pocAddresses, daoImplementation);
         daoProxy = proxyResult.daoProxy;
         voting = proxyResult.voting;
         {
@@ -153,7 +205,7 @@ contract EVMFactory is Ownable, IEVMFactory {
         returnWallet = p.returnWalletAddress;
 
         emit VotingDeployed(voting);
-        emit DaoProxyDeployed(daoProxy, DAO_IMPLEMENTATION);
+        emit DaoProxyDeployed(daoProxy, daoImplementation);
         emit MultisigDeployed(multisig, daoProxy);
 
         SetDaoEverywhereLibrary.executeSetDaoEverywhere(
@@ -178,11 +230,31 @@ contract EVMFactory is Ownable, IEVMFactory {
         )
     {
         if (p.launchToken == address(0)) revert ZeroLaunchToken();
+        emit ExistingTokenUsed(p.launchToken);
+        return _deployStackWithExistingToken(p, pocRoyalty);
+    }
+
+    /// @notice Internal deployment of full stack for an existing launch token; royalty for this deploy is passed in.
+    function _deployStackWithExistingToken(
+        IEVMFactory.DeployWithExistingTokenParams memory p,
+        address royaltyForThisDeploy
+    )
+        internal
+        returns (
+            address token,
+            address returnBurn,
+            address[] memory pocAddresses,
+            address marketMakerV2,
+            address daoProxy,
+            address voting,
+            address multisig,
+            address returnWallet
+        )
+    {
         token = p.launchToken;
-        emit ExistingTokenUsed(token);
         if (p.v3PoolCreateParams.length > 0) {
             for (uint256 i = 0; i < p.v3PoolCreateParams.length; i++) {
-                IEVMFactory.V3PoolCreateParams calldata poolParams = p.v3PoolCreateParams[i];
+                IEVMFactory.V3PoolCreateParams memory poolParams = p.v3PoolCreateParams[i];
                 if (poolParams.sqrtPriceX96 != 0) {
                     _createV3PoolIfRequested(
                         token,
@@ -206,7 +278,7 @@ contract EVMFactory is Ownable, IEVMFactory {
         }
 
         marketMakerV2 = MarketMakerV2Library.executeDeployMarketMakerV2(
-            token, p.mmMinProfitBps, p.mmWithdrawLaunchLockUntil, MERA_FUND, POC_ROYALTY, p.returnWalletAddress
+            token, p.mmMinProfitBps, p.mmWithdrawLaunchLockUntil, MERA_FUND, royaltyForThisDeploy, p.returnWalletAddress
         );
         emit MarketMakerV2Deployed(marketMakerV2, token, p.mmMinProfitBps, p.mmWithdrawLaunchLockUntil);
 
@@ -214,7 +286,7 @@ contract EVMFactory is Ownable, IEVMFactory {
 
         DataTypes.ConstructorParams memory initParams = p.daoInitParams;
         DaoProxyLibrary.DeployDaoProxyResult memory proxyResult =
-            DaoProxyLibrary.executeDeployDaoProxy(token, initParams, pocAddresses, DAO_IMPLEMENTATION);
+            DaoProxyLibrary.executeDeployDaoProxy(token, initParams, pocAddresses, daoImplementation);
         daoProxy = proxyResult.daoProxy;
         voting = proxyResult.voting;
         {
@@ -250,15 +322,13 @@ contract EVMFactory is Ownable, IEVMFactory {
         returnWallet = p.returnWalletAddress;
 
         emit VotingDeployed(voting);
-        emit DaoProxyDeployed(daoProxy, DAO_IMPLEMENTATION);
+        emit DaoProxyDeployed(daoProxy, daoImplementation);
         emit MultisigDeployed(multisig, daoProxy);
 
         SetDaoEverywhereLibrary.executeSetDaoEverywhere(
             daoProxy, returnBurn, pocAddresses, marketMakerV2, returnWallet, self
         );
         FinalizeRightsLibrary.executeFinalizeRights(daoProxy, multisig, p.finalAdmin, pocAddresses, marketMakerV2);
-
-        return (token, returnBurn, pocAddresses, marketMakerV2, daoProxy, voting, multisig, returnWallet);
     }
 
     /// @notice Creates and initializes a Uniswap V3 pool for launchToken/mainCollateral if it does not exist. Token order is by address (token0 < token1).
