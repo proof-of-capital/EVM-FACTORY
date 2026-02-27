@@ -51,7 +51,9 @@ contract EVMFactoryTest is Test {
             _buildParamsForExistingTokenWithRoyalty(address(initialLaunchToken), pocRoyaltyForInitialDeploy);
         initialDaoParams.returnWalletAddress = initialReturnWallet;
 
-        factory = new EVMFactory(daoImplementation, meraFund, pocRoyaltyForInitialDeploy, initialDaoParams);
+        factory = new EVMFactory(
+            daoImplementation, meraFund, pocRoyaltyForInitialDeploy, address(0), address(0), initialDaoParams
+        );
     }
 
     // ---------- Constructor tests ----------
@@ -63,6 +65,7 @@ contract EVMFactoryTest is Test {
         assertEq(factory.pocRoyalty(), initialReturnWallet, "pocRoyalty must be initial DAO return wallet");
         assertTrue(factory.INITIAL_DAO() != address(0), "INITIAL_DAO");
         assertTrue(factory.INITIAL_MULTISIG() != address(0), "INITIAL_MULTISIG");
+        assertTrue(factory.whitelistOracles() != address(0), "whitelistOracles must be set");
         assertEq(factory.owner(), address(this));
     }
 
@@ -71,7 +74,7 @@ contract EVMFactoryTest is Test {
         IEVMFactory.DeployWithExistingTokenParams memory params = _buildParamsForExistingToken(address(t));
         params.returnWalletAddress = initialReturnWallet;
         vm.expectRevert(IEVMFactory.ZeroDaoImplementation.selector);
-        new EVMFactory(address(0), meraFund, pocRoyaltyForInitialDeploy, params);
+        new EVMFactory(address(0), meraFund, pocRoyaltyForInitialDeploy, address(0), address(0), params);
     }
 
     function test_EVMFactory_Deploy_RevertWhen_ZeroMeraFund() public {
@@ -79,7 +82,7 @@ contract EVMFactoryTest is Test {
         IEVMFactory.DeployWithExistingTokenParams memory params = _buildParamsForExistingToken(address(t));
         params.returnWalletAddress = initialReturnWallet;
         vm.expectRevert(IEVMFactory.ZeroMeraFund.selector);
-        new EVMFactory(daoImplementation, address(0), pocRoyaltyForInitialDeploy, params);
+        new EVMFactory(daoImplementation, address(0), pocRoyaltyForInitialDeploy, address(0), address(0), params);
     }
 
     function test_EVMFactory_Deploy_RevertWhen_ZeroPocRoyalty() public {
@@ -87,7 +90,7 @@ contract EVMFactoryTest is Test {
         IEVMFactory.DeployWithExistingTokenParams memory params = _buildParamsForExistingToken(address(t));
         params.returnWalletAddress = initialReturnWallet;
         vm.expectRevert(IEVMFactory.ZeroPocRoyalty.selector);
-        new EVMFactory(daoImplementation, meraFund, address(0), params);
+        new EVMFactory(daoImplementation, meraFund, address(0), address(0), address(0), params);
     }
 
     function test_EVMFactory_Deploy_RevertWhen_ZeroReturnWallet() public {
@@ -95,7 +98,7 @@ contract EVMFactoryTest is Test {
         IEVMFactory.DeployWithExistingTokenParams memory params = _buildParamsForExistingToken(address(t));
         params.returnWalletAddress = address(0);
         vm.expectRevert(IEVMFactory.ZeroReturnWallet.selector);
-        new EVMFactory(daoImplementation, meraFund, pocRoyaltyForInitialDeploy, params);
+        new EVMFactory(daoImplementation, meraFund, pocRoyaltyForInitialDeploy, address(0), address(0), params);
     }
 
     // ---------- setDaoImplementation tests ----------

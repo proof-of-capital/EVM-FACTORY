@@ -13,8 +13,9 @@ import {Constants} from "EVM/utils/Constant.sol";
 /// @notice Deploys EVMFactory with DAO implementation, profit wallets, and initial DAO params.
 /// @dev Requires DAO_IMPLEMENTATION, MERA_FUND, POC_ROYALTY_FOR_INITIAL_DEPLOY, LAUNCH_TOKEN (initial DAO),
 ///      INITIAL_RETURN_WALLET (return wallet of initial DAO; becomes pocRoyalty for all later deploys),
-///      MAIN_COLLATERAL, PRICE_ORACLE, FINAL_ADMIN, UNISWAP_V3_ROUTER, UNISWAP_V3_POSITION_MANAGER,
+///      MAIN_COLLATERAL, FINAL_ADMIN, UNISWAP_V3_ROUTER, UNISWAP_V3_POSITION_MANAGER,
 ///      MULTISIG_SIGNER (or MULTISIG_PRIMARY_1..8 etc.), COLLATERAL_TOKEN (for POC).
+///      Optional: WHITELIST_DAO, WHITELIST_CREATOR (for WhitelistOracles; if unset, deployer is used for both).
 contract DeployEVMFactoryScript is Script {
     function run() public returns (EVMFactory factory) {
         address daoImplementation = vm.envAddress("DAO_IMPLEMENTATION");
@@ -23,7 +24,6 @@ contract DeployEVMFactoryScript is Script {
         address launchToken = vm.envAddress("LAUNCH_TOKEN");
         address initialReturnWallet = vm.envAddress("INITIAL_RETURN_WALLET");
         address mainCollateral = vm.envAddress("MAIN_COLLATERAL");
-        address priceOracle = vm.envAddress("PRICE_ORACLE");
         address finalAdmin = vm.envAddress("FINAL_ADMIN");
         address uniswapV3Router = vm.envAddress("UNISWAP_V3_ROUTER");
         address uniswapV3PositionManager = vm.envAddress("UNISWAP_V3_POSITION_MANAGER");
@@ -31,12 +31,13 @@ contract DeployEVMFactoryScript is Script {
         if (collateralToken == address(0)) collateralToken = mainCollateral;
         address multisigSigner = vm.envOr("MULTISIG_SIGNER", msg.sender);
         address initialPocOwner = vm.envOr("INITIAL_POC_OWNER", msg.sender);
+        address whitelistDao = vm.envOr("WHITELIST_DAO", msg.sender);
+        address whitelistCreator = vm.envOr("WHITELIST_CREATOR", msg.sender);
 
         IEVMFactory.DeployWithExistingTokenParams memory initialDaoParams = _buildInitialDaoParams(
             launchToken,
             initialReturnWallet,
             mainCollateral,
-            priceOracle,
             collateralToken,
             finalAdmin,
             uniswapV3Router,
@@ -47,7 +48,9 @@ contract DeployEVMFactoryScript is Script {
 
         vm.startBroadcast();
 
-        factory = new EVMFactory(daoImplementation, meraFund, pocRoyaltyForInitialDeploy, initialDaoParams);
+        factory = new EVMFactory(
+            daoImplementation, meraFund, pocRoyaltyForInitialDeploy, whitelistDao, whitelistCreator, initialDaoParams
+        );
 
         vm.stopBroadcast();
 
@@ -57,13 +60,13 @@ contract DeployEVMFactoryScript is Script {
         console.log("  pocRoyalty (initial DAO return wallet):", factory.pocRoyalty());
         console.log("  INITIAL_DAO:", factory.INITIAL_DAO());
         console.log("  INITIAL_MULTISIG:", factory.INITIAL_MULTISIG());
+        console.log("  whitelistOracles:", factory.whitelistOracles());
     }
 
     function _buildInitialDaoParams(
         address launchToken_,
         address returnWalletAddress_,
         address mainCollateral_,
-        address priceOracle_,
         address collateralToken_,
         address finalAdmin_,
         address uniswapV3Router_,
@@ -138,7 +141,7 @@ contract DeployEVMFactoryScript is Script {
                 v3Paths: new DataTypes.PricePathV3Params[](0),
                 minLiquidity: 1000e18
             }),
-            priceOracle: priceOracle_,
+            priceOracle: address(0),
             votingContract: address(0),
             marketMaker: address(0),
             lpDepegParams: new DataTypes.LPTokenDepegParams[](0)

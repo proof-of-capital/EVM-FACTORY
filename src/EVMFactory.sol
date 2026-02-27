@@ -35,6 +35,9 @@ pragma solidity 0.8.34;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {DataTypes} from "DAO-EVM/libraries/DataTypes.sol";
 import {IMultisig} from "DAO-EVM/interfaces/IMultisig.sol";
+import {WhitelistOracles} from "DAO-EVM/WhitelistOracles.sol";
+import {PriceOracle} from "DAO-EVM/PriceOracle.sol";
+import {DAO} from "DAO-EVM/DAO.sol";
 import {IEVMFactory} from "./interfaces/IEVMFactory.sol";
 import {TokenDeployLibrary} from "./libraries/TokenDeployLibrary.sol";
 import {ReturnBurnDeployLibrary} from "./libraries/ReturnBurnDeployLibrary.sol";
@@ -60,11 +63,15 @@ contract EVMFactory is Ownable, IEVMFactory {
     address public pocRoyalty;
     address public immutable INITIAL_DAO;
     address public immutable INITIAL_MULTISIG;
+    /// @dev Shared whitelist oracles deployed by factory; used as whitelist for each DAO's PriceOracle.
+    address public immutable whitelistOracles;
 
     constructor(
         address _daoImplementation,
         address _meraFund,
         address _pocRoyaltyForInitialDeploy,
+        address _whitelistDao,
+        address _whitelistCreator,
         IEVMFactory.DeployWithExistingTokenParams memory initialDaoParams
     ) Ownable(msg.sender) {
         if (_daoImplementation == address(0)) {
@@ -77,6 +84,10 @@ contract EVMFactory is Ownable, IEVMFactory {
         daoImplementation = _daoImplementation;
         allowedDaoImplementations[_daoImplementation] = true;
         MERA_FUND = _meraFund;
+        address wlDao = _whitelistDao == address(0) ? msg.sender : _whitelistDao;
+        address wlCreator = _whitelistCreator == address(0) ? msg.sender : _whitelistCreator;
+        WhitelistOracles wl = new WhitelistOracles(wlDao, wlCreator);
+        whitelistOracles = address(wl);
         (,,,, address daoProxy,, address multisig, address returnWallet) =
             _deployStackWithExistingToken(initialDaoParams, _pocRoyaltyForInitialDeploy);
         INITIAL_DAO = daoProxy;
@@ -168,6 +179,7 @@ contract EVMFactory is Ownable, IEVMFactory {
         SetMarketMakerOnPocsLibrary.executeSetMarketMakerOnPocs(pocAddresses, marketMakerV2);
 
         DataTypes.ConstructorParams memory initParams = p.daoInitParams;
+        initParams.priceOracle = address(0);
         DaoProxyLibrary.DeployDaoProxyResult memory proxyResult =
             DaoProxyLibrary.executeDeployDaoProxy(token, initParams, pocAddresses, daoImplementation);
         daoProxy = proxyResult.daoProxy;
@@ -202,6 +214,7 @@ contract EVMFactory is Ownable, IEVMFactory {
                 p.returnWalletAddress
             );
         }
+        _deployAndSetPriceOracle(daoProxy, multisig);
         returnWallet = p.returnWalletAddress;
 
         emit VotingDeployed(voting);
@@ -285,6 +298,7 @@ contract EVMFactory is Ownable, IEVMFactory {
         SetMarketMakerOnPocsLibrary.executeSetMarketMakerOnPocs(pocAddresses, marketMakerV2);
 
         DataTypes.ConstructorParams memory initParams = p.daoInitParams;
+        initParams.priceOracle = address(0);
         DaoProxyLibrary.DeployDaoProxyResult memory proxyResult =
             DaoProxyLibrary.executeDeployDaoProxy(token, initParams, pocAddresses, daoImplementation);
         daoProxy = proxyResult.daoProxy;
@@ -319,6 +333,7 @@ contract EVMFactory is Ownable, IEVMFactory {
                 p.returnWalletAddress
             );
         }
+        _deployAndSetPriceOracle(daoProxy, multisig);
         returnWallet = p.returnWalletAddress;
 
         emit VotingDeployed(voting);
@@ -329,6 +344,13 @@ contract EVMFactory is Ownable, IEVMFactory {
             daoProxy, returnBurn, pocAddresses, marketMakerV2, returnWallet, self
         );
         FinalizeRightsLibrary.executeFinalizeRights(daoProxy, multisig, p.finalAdmin, pocAddresses, marketMakerV2);
+    }
+
+    /// @notice Deploys a PriceOracle for the DAO using factory's whitelist and sets it on the DAO (callable while factory is still admin).
+    function _deployAndSetPriceOracle(address daoProxy, address creator) internal {
+        DataTypes.SourceConfig[] memory configs = new DataTypes.SourceConfig[](0);
+        PriceOracle oracle = new PriceOracle(daoProxy, creator, whitelistOracles, configs);
+        DAO(payable(daoProxy)).setPriceOracle(address(oracle));
     }
 
     /// @notice Creates and initializes a Uniswap V3 pool for launchToken/mainCollateral if it does not exist. Token order is by address (token0 < token1).
