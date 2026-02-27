@@ -2,6 +2,7 @@
 pragma solidity 0.8.34;
 
 import {Test} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 import {EVMFactory} from "../src/EVMFactory.sol";
 import {IEVMFactory} from "../src/interfaces/IEVMFactory.sol";
 import {DAO} from "DAO-EVM/DAO.sol";
@@ -282,6 +283,72 @@ contract EVMFactoryTest is Test {
 
         DataTypes.CoreConfig memory config = DAO(payable(daoProxy)).coreConfig();
         assertEq(config.launchToken, address(launchToken), "DAO launchToken must equal provided token");
+    }
+
+    function test_Constructor_DepositExistingToken_WithPredictedFactoryAddress() public {
+        vm.warp(1672531200);
+
+        BurnableToken launchToken = new BurnableToken("Constructor Launch", "CLAUNCH", 1_000_000e18, address(this));
+        IEVMFactory.DeployWithExistingTokenParams memory initialParams =
+            _buildParamsForExistingTokenWithRoyalty(address(launchToken), pocRoyaltyForInitialDeploy);
+        initialParams.returnWalletAddress = makeAddr("constructorReturnWallet");
+
+        uint256 depositAmount = 250_000e18;
+        uint64 nonceBeforeDeploy = vm.getNonce(address(this));
+        address predictedFactory = vm.computeCreateAddress(address(this), nonceBeforeDeploy);
+        IERC20(address(launchToken)).approve(predictedFactory, depositAmount);
+
+        vm.recordLogs();
+        EVMFactory predictedFactoryInstance = new EVMFactory(
+            daoImplementation,
+            meraFund,
+            pocRoyaltyForInitialDeploy,
+            address(0),
+            address(0),
+            initialParams
+        );
+        assertEq(address(predictedFactoryInstance), predictedFactory, "factory address must match prediction");
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 pocDeployedTopic = keccak256("PocDeployed(address,address,uint256)");
+        address deployedPoc = address(0);
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (
+                logs[i].emitter == predictedFactory
+                    && logs[i].topics.length == 3
+                    && logs[i].topics[0] == pocDeployedTopic
+                    && address(uint160(uint256(logs[i].topics[2]))) == address(launchToken)
+            ) {
+                deployedPoc = address(uint160(uint256(logs[i].topics[1])));
+                break;
+            }
+        }
+
+        assertTrue(deployedPoc != address(0), "POC must be emitted during constructor deployment");
+        assertEq(
+            IERC20(address(launchToken)).balanceOf(deployedPoc),
+            depositAmount,
+            "constructor must deposit approved amount to POC"
+        );
+    }
+
+    function test_DeployWithExistingToken_DepositsAllowanceAmountToPocs() public {
+        vm.warp(1672531200);
+
+        BurnableToken launchToken = new BurnableToken("Allowance Launch", "ALAUNCH", 1_000_000e18, address(this));
+        IEVMFactory.DeployWithExistingTokenParams memory p = _buildParamsForExistingToken(address(launchToken));
+
+        uint256 depositAmount = 123_456e18;
+        IERC20(address(launchToken)).approve(address(factory), depositAmount);
+
+        (, , address[] memory pocAddresses,,,,,) = factory.deployWithExistingToken(p);
+
+        assertEq(pocAddresses.length, 1, "one POC expected");
+        assertEq(
+            IERC20(address(launchToken)).balanceOf(pocAddresses[0]),
+            depositAmount,
+            "deployWithExistingToken must deposit approved amount"
+        );
     }
 
     function test_EVMFactory_DeployWithExistingToken_RevertWhen_ZeroLaunchToken() public {

@@ -2,6 +2,7 @@
 	deploy-dao-libraries-step1 deploy-dao-libraries-step2 deploy-dao-libraries-step3 deploy-dao-implementation deploy-factory deploy-factory-bsc-testnet \
 	deploy-dao-implementation-full-local deploy-all deploy-all-testnet deploy-all-mainnet \
 	deploy-all-polygon deploy-all-holesky deploy-all-base deploy-all-arbitrum deploy-all-bsc deploy-all-bsc-testnet \
+	deploy-token deploy-token-testnet deploy-token-mainnet deploy-token-polygon deploy-token-holesky deploy-token-base deploy-token-arbitrum deploy-token-bsc deploy-token-bsc-testnet \
 	help
 
 include .env
@@ -169,6 +170,47 @@ deploy-factory-bsc-testnet: LEGACY := 1
 deploy-factory-bsc-testnet: VERIFY_API_KEY := $(BSCSCAN_API_KEY)
 deploy-factory-bsc-testnet: deploy-factory
 
+# --- BurnableToken (launch token) ---
+# Deploy BurnableToken only. Uses RPC_URL (default: local). Env: TOKEN_NAME, TOKEN_SYMBOL, TOKEN_TOTAL_SUPPLY, TOKEN_INITIAL_HOLDER (optional; 0 = msg.sender).
+deploy-token:
+	@echo "Deploying BurnableToken..."
+	forge script script/BurnableToken.s.sol \
+		--rpc-url $(RPC_URL) --private-key ${PRIVATE_KEY} --broadcast $(GAS_FLAG) $(VERIFY_FLAG) -vvv
+
+deploy-token-testnet: RPC_URL := $(TESTNET_RPC)
+deploy-token-testnet: VERIFY_API_KEY := $(POLYGONSCAN_API_KEY)
+deploy-token-testnet: deploy-token
+
+deploy-token-mainnet: RPC_URL := $(MAINNET_RPC)
+deploy-token-mainnet: VERIFY_API_KEY := $(ETHERSCAN_API_KEY)
+deploy-token-mainnet: deploy-token
+
+deploy-token-polygon: RPC_URL := $(POLYGON_RPC)
+deploy-token-polygon: VERIFY_API_KEY := $(POLYGONSCAN_API_KEY)
+deploy-token-polygon: deploy-token
+
+deploy-token-holesky: RPC_URL := $(HOLESKY_RPC)
+deploy-token-holesky: VERIFY_API_KEY := $(ETHERSCAN_API_KEY)
+deploy-token-holesky: deploy-token
+
+deploy-token-base: RPC_URL := $(BASE_RPC)
+deploy-token-base: VERIFY_API_KEY := $(BASESCAN_API_KEY)
+deploy-token-base: deploy-token
+
+deploy-token-arbitrum: RPC_URL := $(ARBITRUM_RPC)
+deploy-token-arbitrum: VERIFY_API_KEY := $(ARBISCAN_API_KEY)
+deploy-token-arbitrum: deploy-token
+
+deploy-token-bsc: RPC_URL := $(BSC_RPC)
+deploy-token-bsc: VERIFY_API_KEY := $(BSCSCAN_API_KEY)
+deploy-token-bsc: deploy-token
+
+deploy-token-bsc-testnet: RPC_URL := $(BSC_TESTNET_RPC)
+deploy-token-bsc-testnet: GAS_PRICE := 1000000000
+deploy-token-bsc-testnet: LEGACY := 1
+deploy-token-bsc-testnet: VERIFY_API_KEY := $(BSCSCAN_API_KEY)
+deploy-token-bsc-testnet: deploy-token
+
 help:
 	@echo "Available commands:"
 	@echo "  make build           - Build contracts"
@@ -195,6 +237,17 @@ help:
 	@echo "  make deploy-dao-implementation-full-local - Step1 + Step2 + Step3 + implementation in one go"
 	@echo "  make deploy-factory              - Deploy EVMFactory (needs .dao_library_addresses.env, DAO_IMPLEMENTATION, MERA_FUND, POC_ROYALTY)"
 	@echo "  make deploy-factory-bsc-testnet   - Deploy EVMFactory on BSC testnet (same deps; sets RPC, GAS_PRICE, VERIFY)"
+	@echo ""
+	@echo "BurnableToken (launch token; env: TOKEN_NAME, TOKEN_SYMBOL, TOKEN_TOTAL_SUPPLY, TOKEN_INITIAL_HOLDER):"
+	@echo "  make deploy-token                 - Deploy token to RPC_URL (default: local)"
+	@echo "  make deploy-token-testnet          - Deploy to testnet"
+	@echo "  make deploy-token-mainnet          - Deploy to Ethereum mainnet"
+	@echo "  make deploy-token-polygon         - Deploy to Polygon"
+	@echo "  make deploy-token-holesky         - Deploy to Holesky"
+	@echo "  make deploy-token-base            - Deploy to Base"
+	@echo "  make deploy-token-arbitrum        - Deploy to Arbitrum"
+	@echo "  make deploy-token-bsc             - Deploy to BSC"
+	@echo "  make deploy-token-bsc-testnet     - Deploy to BSC Testnet (Chapel)"
 	@echo ""
 	@echo "  make help            - Show this help message"
 	@echo ""

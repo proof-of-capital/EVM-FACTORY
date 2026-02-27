@@ -33,6 +33,7 @@
 pragma solidity 0.8.34;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {DataTypes} from "DAO-EVM/libraries/DataTypes.sol";
 import {IMultisig} from "DAO-EVM/interfaces/IMultisig.sol";
 import {WhitelistOracles} from "DAO-EVM/WhitelistOracles.sol";
@@ -288,6 +289,14 @@ contract EVMFactory is Ownable, IEVMFactory {
         pocAddresses = PocDeployLibrary.executeDeployPocContracts(token, returnBurn, self, self, p.pocParams);
         for (uint256 i = 0; i < pocAddresses.length; i++) {
             emit PocDeployed(pocAddresses[i], token, i);
+        }
+        // Pull caller-approved launch tokens to the factory, then split across POCs by DAO share settings.
+        if (pocAddresses.length > 0) {
+            uint256 allowanceAmount = IERC20(token).allowance(msg.sender, self);
+            if (allowanceAmount > 0) {
+                IERC20(token).transferFrom(msg.sender, self, allowanceAmount);
+                DepositTokenToPocsLibrary.executeDepositTokenToPocs(token, pocAddresses, p.daoInitParams.pocParams);
+            }
         }
 
         marketMakerV2 = MarketMakerV2Library.executeDeployMarketMakerV2(

@@ -18,6 +18,9 @@ import {Constants} from "EVM/utils/Constant.sol";
 ///      Optional: WHITELIST_DAO, WHITELIST_CREATOR (for WhitelistOracles; if unset, deployer is used for both).
 contract DeployEVMFactoryScript is Script {
     function run() public returns (EVMFactory factory) {
+        uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        address broadcaster = vm.addr(privateKey);
+
         address daoImplementation = vm.envAddress("DAO_IMPLEMENTATION");
         address meraFund = vm.envAddress("MERA_FUND");
         address pocRoyaltyForInitialDeploy = vm.envAddress("POC_ROYALTY_FOR_INITIAL_DEPLOY");
@@ -27,18 +30,36 @@ contract DeployEVMFactoryScript is Script {
         address finalAdmin = vm.envAddress("FINAL_ADMIN");
         address uniswapV3Router = vm.envAddress("UNISWAP_V3_ROUTER");
         address uniswapV3PositionManager = vm.envAddress("UNISWAP_V3_POSITION_MANAGER");
-        address collateralToken = vm.envAddress("COLLATERAL_TOKEN");
+        address collateralToken = vm.envOr("COLLATERAL_TOKEN", address(0));
         if (collateralToken == address(0)) collateralToken = mainCollateral;
-        address multisigSigner = vm.envOr("MULTISIG_SIGNER", msg.sender);
-        address initialPocOwner = vm.envOr("INITIAL_POC_OWNER", msg.sender);
-        address whitelistDao = vm.envOr("WHITELIST_DAO", msg.sender);
-        address whitelistCreator = vm.envOr("WHITELIST_CREATOR", msg.sender);
+        address multisigSigner = vm.envOr("MULTISIG_SIGNER", broadcaster);
+        address initialPocOwner = vm.envOr("INITIAL_POC_OWNER", broadcaster);
+        address whitelistDao = vm.envOr("WHITELIST_DAO", broadcaster);
+        address whitelistCreator = vm.envOr("WHITELIST_CREATOR", broadcaster);
+
+        // Sanity-check required deployment addresses early to avoid opaque downstream reverts.
+        _requireNonZeroAddress(broadcaster, "broadcaster");
+        _requireNonZeroAddress(daoImplementation, "DAO_IMPLEMENTATION");
+        _requireNonZeroAddress(meraFund, "MERA_FUND");
+        _requireNonZeroAddress(pocRoyaltyForInitialDeploy, "POC_ROYALTY_FOR_INITIAL_DEPLOY");
+        _requireNonZeroAddress(launchToken, "LAUNCH_TOKEN");
+        _requireNonZeroAddress(initialReturnWallet, "INITIAL_RETURN_WALLET");
+        _requireNonZeroAddress(mainCollateral, "MAIN_COLLATERAL");
+        _requireNonZeroAddress(finalAdmin, "FINAL_ADMIN");
+        _requireNonZeroAddress(uniswapV3Router, "UNISWAP_V3_ROUTER");
+        _requireNonZeroAddress(uniswapV3PositionManager, "UNISWAP_V3_POSITION_MANAGER");
+        _requireNonZeroAddress(collateralToken, "COLLATERAL_TOKEN (or MAIN_COLLATERAL)");
+        _requireNonZeroAddress(multisigSigner, "MULTISIG_SIGNER");
+        _requireNonZeroAddress(initialPocOwner, "INITIAL_POC_OWNER");
+        _requireNonZeroAddress(whitelistDao, "WHITELIST_DAO");
+        _requireNonZeroAddress(whitelistCreator, "WHITELIST_CREATOR");
 
         IEVMFactory.DeployWithExistingTokenParams memory initialDaoParams = _buildInitialDaoParams(
             launchToken,
             initialReturnWallet,
             mainCollateral,
             collateralToken,
+            pocRoyaltyForInitialDeploy,
             finalAdmin,
             uniswapV3Router,
             uniswapV3PositionManager,
@@ -46,7 +67,16 @@ contract DeployEVMFactoryScript is Script {
             initialPocOwner
         );
 
-        vm.startBroadcast();
+        uint256 linkedLibrariesToDeploy = vm.envOr("EVM_FACTORY_LIBRARY_DEPLOYS", uint256(0));
+        uint256 broadcasterNonce = vm.getNonce(broadcaster);
+        address predictedFactoryAddress = vm.computeCreateAddress(broadcaster, broadcasterNonce + linkedLibrariesToDeploy);
+
+        console.log("Predicted EVMFactory address:", predictedFactoryAddress);
+        console.log("  broadcaster:", broadcaster);
+        console.log("  broadcaster nonce:", broadcasterNonce);
+        console.log("  linked libraries before factory:", linkedLibrariesToDeploy);
+
+        vm.startBroadcast(privateKey);
 
         factory = new EVMFactory(
             daoImplementation, meraFund, pocRoyaltyForInitialDeploy, whitelistDao, whitelistCreator, initialDaoParams
@@ -68,6 +98,7 @@ contract DeployEVMFactoryScript is Script {
         address returnWalletAddress_,
         address mainCollateral_,
         address collateralToken_,
+        address royaltyWalletAddress_,
         address finalAdmin_,
         address uniswapV3Router_,
         address uniswapV3PositionManager_,
@@ -80,7 +111,7 @@ contract DeployEVMFactoryScript is Script {
             launchToken: address(0),
             marketMakerAddress: address(0),
             returnWalletAddress: address(0),
-            royaltyWalletAddress: address(0),
+            royaltyWalletAddress: royaltyWalletAddress_,
             lockEndTime: block.timestamp + 365 days,
             initialPricePerLaunchToken: 1e18,
             firstLevelLaunchTokenQuantity: 1000e18,
@@ -185,5 +216,9 @@ contract DeployEVMFactoryScript is Script {
             returnWalletAddress: returnWalletAddress_,
             finalAdmin: finalAdmin_
         });
+    }
+
+    function _requireNonZeroAddress(address a, string memory name) internal pure {
+        require(a != address(0), name);
     }
 }
